@@ -7,11 +7,11 @@ const S = {
   books: [], names: {}, bookIx: {},
   morph: {}, chron: null, order: null,
   place: null, person: null, event: null, dictIx: null, cmMeta: null, pix: null,
-  man: null, dlTiers: {}, dore: null, showPix: true,
+  man: null, dlTiers: {}, dore: null, showPix: true, audio: null,
   fs: 19, scheme: 'paper', schemes: null,
   lex: {}, conc: {}, idx: {},
   book: 'Jhn', ch: 3,
-  tx: 'KJV', scheme: 'jones', showOrig: true, pron: 'erasmian'
+  tx: 'KJV', chrono: 'jones', showOrig: true, pron: 'erasmian'
 };
 const TX = {
   KJV: 'King James Version (1769)',
@@ -73,7 +73,8 @@ const lazy = {
   dictIx: () => S.dictIx || get('dict_index.json').then(d => S.dictIx = d),
   cmMeta: () => S.cmMeta || get('commentary.json').then(d => S.cmMeta = d),
   pix: () => S.pix || get('pix_manifest.json').then(d => S.pix = d),
-  dore: () => S.dore || get('dore.json').then(d => S.dore = d)
+  dore: () => S.dore || get('dore.json').then(d => S.dore = d),
+  audio: () => S.audio || get('audio.json').then(d => S.audio = d)
 };
 
 /* ------------------------------------------------------------- references */
@@ -169,6 +170,10 @@ function renderChapter(scrollToVerse) {
   out.push(`<h1 style="font-size:1.35rem;margin:6px 0 2px">${esc(refLabel(d.b + '.' + d.c))}</h1>`);
   out.push(`<p class="ot" style="margin:0 0 14px">${rtl ? 'Hebrew / Aramaic' : 'Greek'}
     &middot; ${esc(TX[S.tx] || S.tx)}</p>`);
+  out.push(`<button class="listen" data-listen="1">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M8 5v14l11-7z"/></svg>
+    <span>Listen to this chapter</span></button>`);
 
   d.v.forEach((v, vi) => {
     out.push(`<div class="v" id="v${v.n}">`);
@@ -512,7 +517,7 @@ async function eventSheet(vi, i) {
     const dt = (d.dates || {})[s.scheme_id];
     const y = dt ? yearLabel(dt[0]) : null;
     const end = dt && dt[1] != null && dt[1] !== dt[0] ? yearLabel(dt[1]) : null;
-    o.push(`<div class="row${s.scheme_id === S.scheme ? ' sel' : ''}">
+    o.push(`<div class="row${s.scheme_id === S.chrono ? ' sel' : ''}">
       <span>${esc(s.name)}</span>
       <span class="y${y ? '' : ' none'}">${y ? esc(y + (end ? ' – ' + end : '')) : 'no date in this scheme'}</span></div>`);
   });
@@ -997,6 +1002,139 @@ async function searchDict(ts, box) {
   box.querySelector('.load').outerHTML = o.join('');
 }
 
+
+/* ================================================================= audio */
+/* Public-domain readings from LibriVox, streamed from archive.org. Nothing
+   is hosted here and nothing is downloadable for offline use, so the player
+   says plainly that it needs a connection rather than failing silently.
+
+   Most readings put many chapters in one file - the complete-Bible set runs
+   to 32 chapters of Psalms in a single half-hour track. A reader on Psalm 23
+   dropped at Psalm 1 with no idea where to drag has been given a worse tool
+   than no player at all, so the file's chapter list and each chapter's verse
+   count are used to estimate where the chapter starts. It is an estimate
+   from verse counts, not a timing anyone recorded, and it is labelled as
+   one every time it is offered. */
+
+const AU = { fi: null, key: null, seek: null };
+
+function auEl() { return document.getElementById('plAudio'); }
+
+/** Proportional position of a chapter inside its file, 0..1. */
+function auFraction(f, i) {
+  const total = f.vs.reduce((a, b) => a + b, 0);
+  if (!total || i <= 0) return 0;
+  let before = 0;
+  for (let k = 0; k < i; k++) before += f.vs[k];
+  return before / total;
+}
+
+function auClock(sec) {
+  if (!isFinite(sec) || sec < 0) return '';
+  const m = Math.floor(sec / 60), ss = Math.floor(sec % 60);
+  return m + ':' + ('0' + ss).slice(-2);
+}
+
+async function listen(book, ch) {
+  const key = book + '.' + ch;
+  const bar = document.getElementById('player');
+  const txt = document.getElementById('plTxt');
+  const note = document.getElementById('plNote');
+  if (!bar || !txt || !note) return;
+  bar.hidden = false;
+  document.body.classList.add('playing');
+  txt.innerHTML = '<b>Finding a reading\u2026</b>';
+  note.innerHTML = '';
+
+  let a;
+  try { a = await lazy.audio(); }
+  catch {
+    txt.innerHTML = '<b>The list of readings would not load.</b>';
+    note.textContent = navigator.onLine
+      ? 'Try again in a moment.'
+      : 'You are offline. The readings are streamed, so they need a connection.';
+    return;
+  }
+  const place = (a.chapters || {})[key];
+  if (!place) {
+    txt.innerHTML = '<b>No recording for ' + esc(refLabel(key)) + '.</b>';
+    note.textContent = 'Every other chapter has one, so this is worth reporting.';
+    return;
+  }
+  const [fi, i] = place;
+  const f = a.files[fi];
+  const src = (a.sources || {})[f.item] || {};
+  const el = auEl();
+  if (!el) return;
+
+  AU.key = key;
+  const same = AU.fi === fi && el.src === f.u;
+  if (!same) {
+    AU.fi = fi;
+    AU.seek = null;
+    el.src = f.u;
+  }
+
+  const first = f.ch[0], last = f.ch[f.ch.length - 1];
+  const span = f.ch.length > 1
+    ? refLabel(first) + ' \u2013 ' + refLabel(last).replace(/^\D+/, '').trim()
+    : refLabel(first);
+
+  txt.innerHTML = '<b>' + esc(refLabel(key)) + '</b>' +
+    (f.ch.length > 1
+      ? '<span class="pl-sub">One recording covers ' + esc(span) +
+        ' \u2014 ' + f.ch.length + ' chapters, ' + f.mb + '\u00a0MB</span>'
+      : '<span class="pl-sub">A recording of this chapter on its own</span>');
+
+  const bits = [];
+  if (!navigator.onLine)
+    bits.push('<b>You are offline.</b> The readings are streamed from archive.org, ' +
+      'so this one cannot play until you have a connection. The text itself ' +
+      'still works offline.');
+  if (f.ch.length > 1 && i > 0)
+    bits.push('<span id="plEst">Starting at an estimated position for ' +
+      esc(refLabel(key)) + '. It is worked out from verse counts, not a real ' +
+      'timing, so drag the slider a little either way if it lands in the ' +
+      'wrong place.</span> <button class="pl-b" data-aufrom="0">Start at ' +
+      esc(refLabel(first)) + ' instead</button>');
+  bits.push('Read by volunteers for ' +
+    (src.page ? '<a href="' + esc(src.page) + '" target="_blank" rel="noopener">LibriVox</a>'
+              : 'LibriVox') +
+    '. Public domain. Streamed from archive.org, not stored here.');
+  note.innerHTML = bits.map(b => '<span class="pl-line">' + b + '</span>').join('');
+
+  if (!same && f.ch.length > 1 && i > 0) {
+    AU.seek = auFraction(f, i);
+    el.addEventListener('loadedmetadata', auSeek, { once: true });
+  }
+  el.play().catch(() => {
+    const e = document.getElementById('plEst');
+    if (!navigator.onLine) return;
+    if (e) e.textContent = 'Press play to start.';
+  });
+}
+
+/** Only once the file's length is known can a fraction become a position. */
+function auSeek() {
+  const el = auEl();
+  if (!el || AU.seek == null || !isFinite(el.duration)) return;
+  const t = el.duration * AU.seek;
+  try { el.currentTime = t; } catch { return; }
+  const e = document.getElementById('plEst');
+  if (e) e.textContent = 'Started at about ' + auClock(t) + ', an estimate for ' +
+    refLabel(AU.key) + ' worked out from verse counts rather than a real ' +
+    'timing. Drag the slider a little either way if it lands in the wrong place.';
+}
+
+function auStop() {
+  const el = auEl();
+  if (el) { el.pause(); el.removeAttribute('src'); el.load(); }
+  AU.fi = AU.key = AU.seek = null;
+  const bar = document.getElementById('player');
+  if (bar) bar.hidden = true;
+  document.body.classList.remove('playing');
+}
+
 /* ============================================================= chronology */
 function spanLabel(s) {
   return bookName(s[0]) + ' ' + s[1] + ':' +
@@ -1004,16 +1142,16 @@ function spanLabel(s) {
 }
 async function chronoView() {
   await Promise.all([lazy.event(), S.order || get('chrono_order.json').then(d => S.order = d)]);
-  const sch = (S.chron.schemes || []).find(s => s.scheme_id === S.scheme) || {};
-  const ord = (S.order.order || {})[S.scheme] || { dated: [], undated: [] };
+  const sch = (S.chron.schemes || []).find(s => s.scheme_id === S.chrono) || {};
+  const ord = (S.order.order || {})[S.chrono] || { dated: [], undated: [] };
   const o = [];
   o.push(`<h1 style="font-size:1.3rem;margin:6px 0 2px">The story in order</h1>`);
   o.push(`<p class="ot" style="margin:0 0 14px">${ord.dated.length} dated events
     &middot; ${S.order.order ? Object.keys(S.order.order).length : 0} schemes to choose from</p>`);
   o.push(`<p class="lbl">Chronology</p>
     <div class="opts" style="margin-bottom:10px">${(S.chron.schemes || []).map(s =>
-      `<button class="opt ${s.scheme_id === S.scheme ? 'on' : ''}" data-setscheme2="${esc(s.scheme_id)}">${
-        s.scheme_id === S.scheme ? '\u2713 ' : ''}${esc(s.name)}${
+      `<button class="opt ${s.scheme_id === S.chrono ? 'on' : ''}" data-setscheme2="${esc(s.scheme_id)}">${
+        s.scheme_id === S.chrono ? '\u2713 ' : ''}${esc(s.name)}${
         s.coverage === 'full' ? '' : ' — partial'}</button>`).join('')}</div>`);
   if (sch.summary) o.push(`<p class="de" style="color:var(--ink-soft)">${esc(sch.summary)}</p>`);
   if (sch.source) o.push(`<p class="oc">${esc(sch.source)}</p>`);
@@ -1031,7 +1169,7 @@ async function chronoView() {
 
   const row = eid => {
     const e = S.event[eid]; if (!e) return '';
-    const dt = (e.dates || {})[S.scheme];
+    const dt = (e.dates || {})[S.chrono];
     const y = dt ? yearLabel(dt[0]) : null;
     const end = dt && dt[1] != null && dt[1] !== dt[0] ? yearLabel(dt[1]) : null;
     const sp = (S.order.spans || {})[eid] || [];
@@ -1185,8 +1323,8 @@ function settingsSheet() {
     <p class="pa">${esc(PRON[S.pron])}</p>`);
   o.push(`<p class="lbl" style="margin-top:18px">Chronology</p>
     <div class="opts">${(S.chron.schemes || []).map(s =>
-      `<button class="opt ${s.scheme_id === S.scheme ? 'on' : ''}" data-setscheme="${esc(s.scheme_id)}">${
-        s.scheme_id === S.scheme ? '\u2713 ' : ''}${esc(s.name)}</button>`).join('')}</div>`);
+      `<button class="opt ${s.scheme_id === S.chrono ? 'on' : ''}" data-setscheme="${esc(s.scheme_id)}">${
+        s.scheme_id === S.chrono ? '\u2713 ' : ''}${esc(s.name)}</button>`).join('')}</div>`);
   o.push(`<label class="lbl" style="margin-top:16px">Original language</label>
     <button class="chip" id="origTgl" style="margin-top:4px">${S.showOrig ?
       '✓ showing Hebrew / Greek' : 'hidden — English only'}</button>`);
@@ -1201,8 +1339,8 @@ function settingsSheet() {
 function save() {
   try {
     localStorage.setItem('codex', JSON.stringify(
-      { tx: S.tx, scheme: S.scheme, pron: S.pron, showOrig: S.showOrig,
-        book: S.book, ch: S.ch, fs: S.fs, scheme: S.scheme,
+      { tx: S.tx, scheme: S.scheme, chrono: S.chrono, pron: S.pron,
+        showOrig: S.showOrig, book: S.book, ch: S.ch, fs: S.fs,
         showPix: S.showPix }));
   } catch { /* private mode, blocked storage — settings just don't persist */ }
 }
@@ -1211,7 +1349,7 @@ function load() {
     const v = JSON.parse(localStorage.getItem('codex') || '{}');
     if (v && typeof v === 'object') Object.assign(S, {
       tx: TX[v.tx] ? v.tx : S.tx,
-      scheme: v.scheme || S.scheme,
+      chrono: v.chrono || S.chrono,
       pron: PRON[v.pron] ? v.pron : S.pron,
       showOrig: v.showOrig !== false,
       book: v.book || S.book, ch: v.ch || S.ch,
@@ -1248,7 +1386,7 @@ function route() {
 
 /* ========================================================= event wiring */
 document.addEventListener('click', ev => {
-  const t = ev.target.closest('[data-setpix],[data-go2],[data-fs],[data-setscheme3],[data-settx],[data-setpron],[data-setscheme],[data-setscheme2],[data-tier],[data-dlstart],[data-dlstop],[data-dlclear],[data-cmf],[data-close],[data-v][data-t],[data-k],[data-ref],[data-conc],[data-dict],[data-book],[data-ch],[data-nav],[data-go],[data-tab],[data-expand]');
+  const t = ev.target.closest('[data-listen],[data-aufrom],[data-setpix],[data-go2],[data-fs],[data-setscheme3],[data-settx],[data-setpron],[data-setscheme],[data-setscheme2],[data-tier],[data-dlstart],[data-dlstop],[data-dlclear],[data-cmf],[data-close],[data-v][data-t],[data-k],[data-ref],[data-conc],[data-dict],[data-book],[data-ch],[data-nav],[data-go],[data-tab],[data-expand]');
   if (!t) return;
 
   if (t.dataset.close) return closeSheet();
@@ -1268,11 +1406,19 @@ document.addEventListener('click', ev => {
     applyDisplay(); save(); displaySheet();
     return;
   }
+  if (t.dataset.listen) return void listen(S.book, S.ch);
+  if (t.dataset.aufrom !== undefined) {
+    const el = auEl();
+    if (el) { AU.seek = null; try { el.currentTime = 0; } catch {} el.play().catch(() => {}); }
+    const e = document.getElementById('plEst');
+    if (e) e.textContent = 'Started at the beginning of the recording.';
+    return;
+  }
   if (t.dataset.go2 === 'display') return displaySheet();
   if (t.dataset.settx)      { S.tx = t.dataset.settx; save(); renderChapter(); settingsSheet(); return; }
   if (t.dataset.setpron)    { S.pron = t.dataset.setpron; save(); settingsSheet(); return; }
-  if (t.dataset.setscheme)  { S.scheme = t.dataset.setscheme; save(); settingsSheet(); return; }
-  if (t.dataset.setscheme2) { S.scheme = t.dataset.setscheme2; save(); chronoView(); return; }
+  if (t.dataset.setscheme)  { S.chrono = t.dataset.setscheme; save(); settingsSheet(); return; }
+  if (t.dataset.setscheme2) { S.chrono = t.dataset.setscheme2; save(); chronoView(); return; }
   if (t.dataset.setpix) {
     S.showPix = !S.showPix;
     save(); renderChapter(); displaySheet();
@@ -1351,8 +1497,8 @@ async function boot() {
     S.books = b.books; S.names = b.names; S.morph = m; S.chron = c;
     S.schemes = sc;
     S.books.forEach((x, i) => S.bookIx[x[0]] = { n: x[1], t: x[2], chapters: x[3], i });
-    if (!(S.chron.schemes || []).some(s => s.scheme_id === S.scheme))
-      S.scheme = (S.chron.schemes[0] || {}).scheme_id || 'jones';
+    if (!(S.chron.schemes || []).some(s => s.scheme_id === S.chrono))
+      S.chrono = (S.chron.schemes[0] || {}).scheme_id || 'jones';
   } catch (e) {
     $('#view').innerHTML = `<p class="load">The text would not load.
       If this is the first time you have opened it, you need to be online once;
@@ -1365,6 +1511,8 @@ async function boot() {
   $('#btnSearch').onclick = () => go('#/search?q=');
   $('#ref').onclick = () => chaptersSheet(S.book);
   $('#scrim').onclick = closeSheet;
+  const plx = document.getElementById('plX');
+  if (plx) plx.onclick = auStop;
   window.addEventListener('hashchange', route);
   route();
   warm();
