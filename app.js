@@ -1023,6 +1023,105 @@ async function searchDict(ts, box) {
 
 
 
+
+/* ============================================================== welcome */
+/* The first thing a person sees when somebody sends them the link.
+   Two sentences on what it is, then the five things worth knowing, each
+   one showing the button it is talking about rather than naming it. Then
+   out of the way: it appears once, and after that only if asked for. */
+
+function seenWelcome() {
+  try { return localStorage.getItem('codex-seen') === '1'; } catch { return false; }
+}
+function markWelcome() {
+  try { localStorage.setItem('codex-seen', '1'); } catch { /* private mode */ }
+}
+
+const ICON_AA = `<span class="demo"><span style="font-weight:600">A</span><span
+  style="font-weight:600;font-size:.72em">a</span></span>`;
+const ICON_BOOKS = `<span class="demo"><svg width="19" height="19" viewBox="0 0 24 24"
+  fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"
+  aria-hidden="true"><path d="M4 5h16M4 12h16M4 19h16"/></svg></span>`;
+const ICON_SEARCH = `<span class="demo"><svg width="19" height="19" viewBox="0 0 24 24"
+  fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"
+  aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.4 15.4 21 21"/></svg></span>`;
+
+function welcomeView() {
+  const o = [];
+  o.push(`<h1 style="font-size:1.5rem;margin:14px 0 4px;line-height:1.3">The Jarrell Codex</h1>`);
+  o.push(`<p class="ot" style="margin:0 0 20px">A Bible you can read, listen to,
+    and look things up in</p>`);
+
+  o.push(`<p class="de" style="font-size:var(--t4)">The whole Bible in English,
+    with the Hebrew and Greek it was written in underneath, and a way to look up
+    any word, place, person or date in it.</p>`);
+  o.push(`<p class="de">It is free, there is nothing to install, no account, and
+    nothing here watches what you read.</p>`);
+
+  o.push(`<p class="lbl" style="margin:26px 0 10px">Five things worth knowing</p>`);
+
+  const tip = (demo, head, body) => `<div class="tip">
+    <div class="tip-d">${demo}</div>
+    <div><p class="tip-h">${head}</p><p class="de" style="margin:4px 0 0">${body}</p></div>
+  </div>`;
+
+  o.push(tip(
+    `<span class="demo"><svg width="20" height="20" viewBox="0 0 24 24"
+      fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span>`,
+    'It can read itself to you',
+    `Every chapter has a <b>Listen</b> button at the top and the bottom. The
+     recordings are read by volunteers and cost nothing. That one needs an
+     internet connection; everything else does not.`));
+
+  o.push(tip(ICON_AA,
+    'You can make the words bigger',
+    `Tap <b>Aa</b> at the top for text size and colour. It goes a good deal
+     larger than it starts, and there are six colour schemes including a dark
+     one for reading at night. Whatever you pick is remembered.`));
+
+  o.push(tip(
+    `<span class="demo" style="font-family:var(--grk);font-size:1.15rem">\u03bb\u03cc\u03b3</span>`,
+    'Tap any Hebrew or Greek word',
+    `It opens up: what the word is, what its parts mean, its dictionary number,
+     and every other verse in the Bible that uses it.`));
+
+  o.push(tip(
+    `<span class="demo" style="color:var(--accent)">\u25c6</span>`,
+    'Tap the little markers under a verse',
+    `They lead to the place and what it looks like today, the people, the date
+     by several different reckonings, the translators' notes, the other verses
+     that say the same thing, and six old commentaries.`));
+
+  o.push(tip(ICON_BOOKS + ICON_SEARCH,
+    'Getting around',
+    `The lines at the top left open the list of books. The name of the chapter,
+     in the middle, jumps to any chapter. The magnifying glass searches the
+     whole Bible.`));
+
+  o.push(`<div style="margin:30px 0 10px">
+    <button class="start" data-startreading="1">Start reading \u2192</button></div>`);
+  o.push(`<p class="pa" style="margin:4px 0 0">It opens at John 3. Use the
+    menu at the top left to go anywhere else.</p>`);
+
+  o.push(`<p class="lbl" style="margin:30px 0 8px">Two more things, for later</p>`);
+  o.push(`<div class="mo"><p style="font-weight:600;margin:0 0 6px">It works with no signal</p>
+    <p class="de" style="margin:0">Chapters you have opened are kept on your phone
+    already. If you want the whole thing \u2014 every word, every picture \u2014 there is a
+    download button on the About page. Then it works on a plane, in a hospital, or
+    anywhere with no bars at all.</p></div>`);
+  o.push(`<div class="mo"><p style="font-weight:600;margin:0 0 6px">Nothing here is
+    anyone's opinion dressed up as fact</p>
+    <p class="de" style="margin:0">Where the experts disagree \u2014 about a date, or
+    where a place actually was \u2014 it says so and shows you the disagreement, rather
+    than picking one and keeping quiet. Every source is named and free to copy.</p></div>`);
+
+  o.push(`<button class="more" data-go="about" style="margin-top:20px">About, and
+    where all of this came from \u2192</button>`);
+  o.push(footer());
+  $('#view').innerHTML = o.join('');
+  window.scrollTo(0, 0);
+}
+
 /* =============================================================== plates */
 /* All 150 of Dore's engravings, in the order he published them, with an
    honest account of each one.
@@ -1381,6 +1480,8 @@ function aboutView() {
     people who made them, and that request is still outstanding. Everything else
     works without it.</p>`);
 
+  o.push(`<button class="more" data-go="welcome" style="margin:18px 0 0">Show me
+    how to use this again \u2192</button>`);
   o.push(`<p class="lbl" style="margin:24px 0 8px">Where all of this came from</p>`);
   [['STEPBible — Tyndale House, Cambridge',
     'TAHOT and TAGNT: the Hebrew and Greek text with a dictionary number and a grammar code on every word, including the separate numbers for prefixes and endings. CC BY 4.0.'],
@@ -1530,7 +1631,13 @@ function route() {
   closeSheet();
   const h = decodeURIComponent(location.hash.replace(/^#\/?/, ''));
   $('#btnSearch').classList.toggle('on', h.startsWith('search'));
-  if (!h) { go('#/' + S.book + '.' + S.ch, true); return; }
+  if (!h) {
+    // A link arriving from someone else should explain itself before it
+    // drops the reader into Greek.
+    if (!seenWelcome()) { go('#/welcome', true); return; }
+    go('#/' + S.book + '.' + S.ch, true); return;
+  }
+  if (h === 'welcome') { $('#ref').textContent = 'Welcome'; return welcomeView(); }
   if (h === 'chrono') { $('#ref').textContent = 'Chronology'; return chronoView(); }
   if (h === 'offline') { $('#ref').textContent = 'Offline'; return offlineView(); }
   if (h === 'about')  { $('#ref').textContent = 'About';      return aboutView(); }
@@ -1547,7 +1654,7 @@ function route() {
 
 /* ========================================================= event wiring */
 document.addEventListener('click', ev => {
-  const t = ev.target.closest('[data-listen],[data-aufrom],[data-setpix],[data-go2],[data-fs],[data-setscheme3],[data-settx],[data-setpron],[data-setscheme],[data-setscheme2],[data-tier],[data-dlstart],[data-dlstop],[data-dlclear],[data-cmf],[data-close],[data-v][data-t],[data-k],[data-ref],[data-conc],[data-dict],[data-book],[data-ch],[data-nav],[data-go],[data-tab],[data-expand]');
+  const t = ev.target.closest('[data-startreading],[data-listen],[data-aufrom],[data-setpix],[data-go2],[data-fs],[data-setscheme3],[data-settx],[data-setpron],[data-setscheme],[data-setscheme2],[data-tier],[data-dlstart],[data-dlstop],[data-dlclear],[data-cmf],[data-close],[data-v][data-t],[data-k],[data-ref],[data-conc],[data-dict],[data-book],[data-ch],[data-nav],[data-go],[data-tab],[data-expand]');
   if (!t) return;
 
   if (t.dataset.close) return closeSheet();
@@ -1566,6 +1673,10 @@ document.addEventListener('click', ev => {
     S.fs = Math.min(FS_MAX, Math.max(FS_MIN, S.fs + (+t.dataset.fs) * FS_STEP));
     applyDisplay(); save(); displaySheet();
     return;
+  }
+  if (t.dataset.startreading) {
+    markWelcome();
+    return go('#/' + S.book + '.' + S.ch);
   }
   if (t.dataset.listen) return void listen(S.book, S.ch);
   if (t.dataset.aufrom !== undefined) {

@@ -241,3 +241,18 @@ body.playing{padding-bottom:calc(248px + env(safe-area-inset-bottom,0px))}
   border:1px solid var(--accent);border-radius:9px;
   color:var(--accent);font-size:var(--t1)}
 .pl-b:active{background:var(--accent-soft)}
+
+/* ---- the first screen ------------------------------------------------
+   Someone arriving from a link somebody sent them. Each tip draws the
+   button it is talking about rather than naming it, because "tap Aa" means
+   nothing until you have seen the Aa. */
+.tip{display:flex;gap:14px;align-items:flex-start;margin:0 0 20px}
+.tip-d{flex:none;display:flex;gap:4px;align-items:center;padding-top:2px}
+.tip-h{font-weight:600;margin:0;font-size:var(--t4)}
+.demo{min-width:44px;min-height:44px;display:inline-flex;align-items:center;
+  justify-content:center;border:1px solid var(--line);border-radius:10px;
+  background:var(--surface);color:var(--ink)}
+.start{width:100%;min-height:60px;border:2px solid var(--accent);
+  border-radius:12px;background:var(--accent);color:var(--on-accent);
+  font-size:var(--t5);font-weight:600}
+.start:active{background:var(--accent-soft);color:var(--accent)}
