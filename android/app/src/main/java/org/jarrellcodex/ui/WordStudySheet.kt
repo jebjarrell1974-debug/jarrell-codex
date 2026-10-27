@@ -20,6 +20,7 @@ fun WordStudySheet(
     context: VerseContext?,
     schemes: List<Scheme>,
     schemeId: String,
+    photoOf: (String) -> Photo? = { null },
     onScheme: (String) -> Unit,
 ) {
     Column(
@@ -90,6 +91,10 @@ fun WordStudySheet(
                         else -> "location unknown"
                     }
                     Text("${p.name} · $where", style = MaterialTheme.typography.bodySmall)
+                    // Somewhere that is still there, photographed. Not every
+                    // place has one, and a place with no photograph simply
+                    // has none - nothing stands in for it.
+                    photoOf(p.name)?.let { PhotoFigure(it) }
                 }
                 ctx.people.forEach { p ->
                     val dates = listOfNotNull(formatYear(p.birthYear), formatYear(p.deathYear))

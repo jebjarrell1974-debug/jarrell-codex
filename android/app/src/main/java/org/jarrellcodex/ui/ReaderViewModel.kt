@@ -30,6 +30,12 @@ data class ReaderState(
     val showDisplay: Boolean = false,
     /** Set only when a reading was asked for and none could be found. */
     val audioMiss: String? = null,
+    /**
+     * The photographs and engravings, once their manifests are read. Held
+     * in state rather than in a field so the first chapter redraws with its
+     * plates in it instead of waiting for the next one.
+     */
+    val pictures: Pictures? = null,
     val error: String? = null,
     // the commentators, which the reader opts into
     val commentaryReady: Boolean = false,
@@ -142,6 +148,19 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
 
     fun clearAudioMiss() { _state.value = _state.value.copy(audioMiss = null) }
 
+    // ---- the pictures ------------------------------------------------------
+
+    /**
+     * Read during composition, so both answer from what is already in
+     * memory and never block. Nothing before the manifests are read, which
+     * is a chapter with no pictures rather than a chapter that stalls.
+     */
+    fun platesAt(verseKey: String): List<Plate> =
+        _state.value.pictures?.platesAt(verseKey) ?: emptyList()
+
+    fun photoOf(placeName: String): Photo? =
+        _state.value.pictures?.photo(placeName)
+
     fun open(book: String, chapter: Int) = viewModelScope.launch {
         _state.value = _state.value.copy(loading = true, error = null, selected = null, context = null)
         runCatching {
@@ -165,6 +184,11 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
                 xrefCounts = marks.third,
             )
             relabelAudio(book, chapter)
+            if (_state.value.pictures == null) {
+                Pictures.load(getApplication())?.let {
+                    _state.value = _state.value.copy(pictures = it)
+                }
+            }
         }.onFailure { e ->
             _state.value = _state.value.copy(loading = false, error = e.message ?: "Could not open the text")
         }

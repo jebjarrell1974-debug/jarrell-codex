@@ -131,6 +131,9 @@ fun ReaderScreen(vm: ReaderViewModel) {
                     onNotes = { vm.openNotes(v.verseKey) },
                     onXrefs = { vm.openXrefs(v.verseKey) },
                 )
+                // Dore engraved these for the verses they sit under, so they
+                // belong in the text rather than in a gallery somewhere else.
+                vm.platesAt(v.verseKey).forEach { PlateFigure(it) }
             }
             item {
                 ListenButton("Listen to ${vm.bookName(s.book)} ${s.chapter}") { vm.listen() }
@@ -225,7 +228,14 @@ fun ReaderScreen(vm: ReaderViewModel) {
 
     s.selected?.let { study ->
         ModalBottomSheet(onDismissRequest = { vm.clearSelection() }) {
-            WordStudySheet(study, s.context, s.schemes, s.schemeId) { vm.chooseScheme(it) }
+            WordStudySheet(
+                study = study,
+                context = s.context,
+                schemes = s.schemes,
+                schemeId = s.schemeId,
+                photoOf = { vm.photoOf(it) },
+                onScheme = { vm.chooseScheme(it) },
+            )
         }
     }
 }
