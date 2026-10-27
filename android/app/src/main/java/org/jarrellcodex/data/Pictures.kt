@@ -48,6 +48,19 @@ data class Plate(
     val asset: String get() = "dore/$file"
 }
 
+/**
+ * optString is not safe here.
+ *
+ * 90 of the 307 photographs carry "licurl": null, 22 carry "artist": null,
+ * and 23 plates carry "ref": null. Android's JSONObject.optString turns an
+ * explicit JSON null into the four-character string "null" rather than the
+ * fallback, so those would have shown a photographer called null and a
+ * Licence button linking to null. isNull is the question actually being
+ * asked.
+ */
+private fun JSONObject.text(key: String): String =
+    if (isNull(key)) "" else optString(key, "")
+
 class Pictures private constructor(
     private val photos: Map<String, Photo>,
     private val plates: Map<String, Plate>,
@@ -80,10 +93,10 @@ class Pictures private constructor(
                         name = name,
                         file = o.getString("file"),
                         width = o.optInt("w"), height = o.optInt("h"),
-                        licence = o.optString("licence", ""),
-                        licenceUrl = o.optString("licurl", ""),
-                        artist = o.optString("artist", ""),
-                        page = o.optString("page", ""),
+                        licence = o.text("licence"),
+                        licenceUrl = o.text("licurl"),
+                        artist = o.text("artist"),
+                        page = o.text("page"),
                     )
                 }
 
@@ -97,10 +110,10 @@ class Pictures private constructor(
                     plates[id] = Plate(
                         id = id,
                         file = o.getString("file"),
-                        title = o.optString("title", ""),
+                        title = o.text("title"),
                         width = o.optInt("w"), height = o.optInt("h"),
-                        reference = o.optString("ref", ""),
-                        page = o.optString("page", ""),
+                        reference = o.text("ref"),
+                        page = o.text("page"),
                     )
                 }
 

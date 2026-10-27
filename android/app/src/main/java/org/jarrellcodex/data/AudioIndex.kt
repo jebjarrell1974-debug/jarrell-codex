@@ -110,10 +110,13 @@ class AudioIndex private constructor(
                 val sources = HashMap<String, Source>(so.length() * 2)
                 for (item in so.keys()) {
                     val s = so.getJSONObject(item)
+                    // Same trap as the picture manifests: an explicit
+                    // JSON null comes back from optString as the string
+                    // "null", so ask isNull instead.
                     sources[item] = Source(
-                        s.optString("title", "LibriVox"),
-                        s.optString("page", ""),
-                        s.optString("licence", ""),
+                        if (s.isNull("title")) "LibriVox" else s.optString("title", "LibriVox"),
+                        if (s.isNull("page")) "" else s.optString("page", ""),
+                        if (s.isNull("licence")) "" else s.optString("licence", ""),
                     )
                 }
 
