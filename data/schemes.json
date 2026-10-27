@@ -1,0 +1,50 @@
+{
+ "paper": {
+  "name": "Paper",
+  "note": "A warm near-white. The default.",
+  "paper": "#FCFBF8",
+  "ink": "#141210",
+  "accent": "#0B4F87",
+  "dark": false
+ },
+ "sepia": {
+  "name": "Sepia",
+  "note": "The old paperback. Warmer, a little less glare.",
+  "paper": "#F4ECD8",
+  "ink": "#241D14",
+  "accent": "#07406E",
+  "dark": false
+ },
+ "contrast": {
+  "name": "High contrast",
+  "note": "Everything as strong as it goes. For bright sun, or eyes that need it.",
+  "paper": "#FFFFFF",
+  "ink": "#000000",
+  "accent": "#00439B",
+  "dark": false
+ },
+ "dim": {
+  "name": "Dim",
+  "note": "Quiet grey, dark print. For eyes that find a white page too bright but read a dark screen worse.",
+  "paper": "#D8D4CE",
+  "ink": "#16140F",
+  "accent": "#06385F",
+  "dark": false
+ },
+ "night": {
+  "name": "Night",
+  "note": "Soft dark. Easier than pure black on most screens.",
+  "paper": "#15181C",
+  "ink": "#EDEBE7",
+  "accent": "#F0C98A",
+  "dark": true
+ },
+ "black": {
+  "name": "Black",
+  "note": "True black. Saves power on an OLED screen.",
+  "paper": "#000000",
+  "ink": "#FFFFFF",
+  "accent": "#FFD479",
+  "dark": true
+ }
+}

@@ -18,10 +18,6 @@
 @font-face{font-family:'CodexGrk';font-style:italic;font-weight:400;font-display:swap;
   src:url('font/greek-400i.woff2') format('woff2')}
 :root{
-  --ink:#1a1d24; --ink-soft:#3f4654; --ink-faint:#5d6575;
-  --paper:#f8f7f4; --surface:#fff; --line:#e2dfd8; --line-soft:#eeebe5;
-  --accent:#2f4a7d; --accent-soft:#e9eef7; --on-accent:#fff;
-  --good:#2f6b4f; --warn:#8a6312; --crit:#8b3a3a;
   --ui:'CodexUI',Georgia,'Times New Roman',serif;
   --heb:'CodexHeb','Times New Roman',serif;
   --grk:'CodexGrk','CodexUI',Georgia,serif;
@@ -38,21 +34,10 @@
   --t4:1.12rem;   /* lead-in */
   --t5:1.3rem;    /* headings */
   --t6:1.7rem;    /* a headword under the glass */
-  --lh:1.65;      /* leading */
+  --lh:1.7;       /* leading: WCAG 1.4.12 floors this at 1.5 */
   --tap:48px;
 }
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --ink:#e9e7e2; --ink-soft:#c3c8d2; --ink-faint:#9aa2b1;
-  --paper:#12141a; --surface:#1a1d24; --line:#2e323b; --line-soft:#22252c;
-  --accent:#8fb0e8; --accent-soft:#1e2738; --on-accent:#11131a;
-  --good:#6fbb90; --warn:#d7a848; --crit:#e08585;
-  color-scheme:dark;}}
-:root[data-theme="dark"]{
-  --ink:#e9e7e2; --ink-soft:#c3c8d2; --ink-faint:#9aa2b1;
-  --paper:#12141a; --surface:#1a1d24; --line:#2e323b; --line-soft:#22252c;
-  --accent:#8fb0e8; --accent-soft:#1e2738; --on-accent:#11131a;
-  --good:#6fbb90; --warn:#d7a848; --crit:#e08585;
-  color-scheme:dark;}
+/* Colour lives in scheme.css, which is generated and verified. */
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0}
 html{font-size:var(--fs)}
@@ -203,3 +188,14 @@ input[type=search]{width:100%;background:var(--surface);border:1px solid var(--l
 a.opt{text-decoration:none;display:flex;align-items:center}
 a.opt:visited{color:var(--ink)}
 figure img{max-width:100%}
+
+/* ---- colour swatches -------------------------------------------------- */
+.swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(102px,1fr));
+  gap:10px;margin:8px 0 2px}
+.sw{display:flex;flex-direction:column;align-items:center;gap:6px;
+  min-height:var(--tap);padding:10px 6px;border:1px solid var(--line);
+  border-radius:10px;background:var(--surface);color:var(--ink)}
+.sw.on{border-color:var(--accent);border-width:2px;padding:9px 5px}
+.sw-chip{width:46px;height:46px;border-radius:8px;border:1px solid var(--line);
+  display:flex;align-items:center;justify-content:center;font-size:var(--t4)}
+.sw-name{font-size:var(--t1);text-align:center;line-height:1.3}

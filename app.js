@@ -8,7 +8,7 @@ const S = {
   morph: {}, chron: null, order: null,
   place: null, person: null, event: null, dictIx: null, cmMeta: null, pix: null,
   man: null, dlTiers: {},
-  fs: 19, theme: 'light',
+  fs: 19, scheme: 'paper', schemes: null,
   lex: {}, conc: {}, idx: {},
   book: 'Jhn', ch: 3,
   tx: 'KJV', scheme: 'jones', showOrig: true, pron: 'erasmian'
@@ -558,10 +558,15 @@ function xrefSheet(vi) {
    likely to go hunting for a setting. */
 const FS_MIN = 17, FS_MAX = 30, FS_STEP = 1;
 
+const SCHEME_ORDER = ['paper', 'sepia', 'contrast', 'dim', 'night', 'black', 'auto'];
+
 function applyDisplay() {
   const r = document.documentElement;
   r.style.setProperty('--fs', S.fs + 'px');
-  r.setAttribute('data-theme', S.theme);
+  r.setAttribute('data-scheme', S.scheme);
+  const m = document.querySelector('meta[name=theme-color]:not([media])');
+  if (m) m.setAttribute('content',
+    getComputedStyle(r).getPropertyValue('--paper').trim() || '#FCFBF8');
 }
 
 function displaySheet() {
@@ -590,16 +595,34 @@ function displayPanel() {
      only begotten Son.</p>
   <p class="ot" style="margin:0 0 18px">That is how a verse will look.</p>
 
-  <p class="lbl">Brightness</p>
-  <div class="tabs" style="margin:6px 0 4px">
-    ${[['light', 'Light'], ['dark', 'Dark'], ['auto', 'Match my phone']]
-      .map(([k, l]) => `<button data-setbright="${k}" class="${S.theme === k ? 'on' : ''}">${l}</button>`).join('')}
+  <p class="lbl">Colour</p>
+  <div class="swatches">
+    ${SCHEME_ORDER.map(k => {
+      const sc = (S.schemes || {})[k];
+      const on = S.scheme === k;
+      if (k === 'auto') {
+        return `<button class="sw ${on ? 'on' : ''}" data-setscheme3="auto"
+          aria-label="Match my phone">
+          <span class="sw-chip" style="background:linear-gradient(135deg,#FCFBF8 50%,#15181C 50%)">
+            <span style="color:#141210;font-weight:600">A</span></span>
+          <span class="sw-name">${on ? '\u2713 ' : ''}Match my phone</span></button>`;
+      }
+      if (!sc) return '';
+      return `<button class="sw ${on ? 'on' : ''}" data-setscheme3="${esc(k)}"
+        aria-label="${esc(sc.name)}">
+        <span class="sw-chip" style="background:${esc(sc.paper)};border-color:${esc(sc.ink)}33">
+          <span style="color:${esc(sc.ink)};font-weight:600">A</span></span>
+        <span class="sw-name">${on ? '\u2713 ' : ''}${esc(sc.name)}</span></button>`;
+    }).join('')}
   </div>
+  <p class="pa" style="margin:8px 0 18px">${
+    esc(((S.schemes || {})[S.scheme] || {}).note ||
+        'Follows whatever your phone is set to.')}</p>
   <p class="pa" style="margin:0 0 18px">Dark print on a light page tested
-    better for most readers over sixty, so that is the default. But readers
-    with a cataract often do better the other way round, because a dark screen
-    throws less light to scatter. Try both and keep whichever is easier —
-    your own eyes are the evidence here, not ours.</p>`;
+    better for most readers over sixty, which is why Paper is the default.
+    But readers with a cataract often do better on a dark screen, because it
+    throws off less light to scatter. Try them. Your own eyes are the evidence
+    here, not ours.</p>`;
 }
 
 /* =========================================================== offline save */
@@ -1154,7 +1177,7 @@ function save() {
   try {
     localStorage.setItem('codex', JSON.stringify(
       { tx: S.tx, scheme: S.scheme, pron: S.pron, showOrig: S.showOrig,
-        book: S.book, ch: S.ch, fs: S.fs, theme: S.theme }));
+        book: S.book, ch: S.ch, fs: S.fs, scheme: S.scheme }));
   } catch { /* private mode, blocked storage — settings just don't persist */ }
 }
 function load() {
@@ -1167,7 +1190,7 @@ function load() {
       showOrig: v.showOrig !== false,
       book: v.book || S.book, ch: v.ch || S.ch,
       fs: Math.min(FS_MAX, Math.max(FS_MIN, +v.fs || S.fs)),
-      theme: ['auto', 'light', 'dark'].indexOf(v.theme) >= 0 ? v.theme : S.theme
+      scheme: SCHEME_ORDER.indexOf(v.scheme) >= 0 ? v.scheme : S.scheme
     });
   } catch { /* ignore */ }
 }
@@ -1198,7 +1221,7 @@ function route() {
 
 /* ========================================================= event wiring */
 document.addEventListener('click', ev => {
-  const t = ev.target.closest('[data-go2],[data-fs],[data-setbright],[data-settx],[data-setpron],[data-setscheme],[data-setscheme2],[data-tier],[data-dlstart],[data-dlstop],[data-dlclear],[data-cmf],[data-close],[data-v][data-t],[data-k],[data-ref],[data-conc],[data-dict],[data-book],[data-ch],[data-nav],[data-go],[data-tab],[data-expand]');
+  const t = ev.target.closest('[data-go2],[data-fs],[data-setscheme3],[data-settx],[data-setpron],[data-setscheme],[data-setscheme2],[data-tier],[data-dlstart],[data-dlstop],[data-dlclear],[data-cmf],[data-close],[data-v][data-t],[data-k],[data-ref],[data-conc],[data-dict],[data-book],[data-ch],[data-nav],[data-go],[data-tab],[data-expand]');
   if (!t) return;
 
   if (t.dataset.close) return closeSheet();
@@ -1223,8 +1246,8 @@ document.addEventListener('click', ev => {
   if (t.dataset.setpron)    { S.pron = t.dataset.setpron; save(); settingsSheet(); return; }
   if (t.dataset.setscheme)  { S.scheme = t.dataset.setscheme; save(); settingsSheet(); return; }
   if (t.dataset.setscheme2) { S.scheme = t.dataset.setscheme2; save(); chronoView(); return; }
-  if (t.dataset.setbright) {
-    S.theme = t.dataset.setbright;
+  if (t.dataset.setscheme3) {
+    S.scheme = t.dataset.setscheme3;
     applyDisplay(); save(); displaySheet();
     return;
   }
@@ -1290,9 +1313,11 @@ async function boot() {
   if ('serviceWorker' in navigator)
     navigator.serviceWorker.register('sw.js').catch(() => {});
   try {
-    const [b, m, c] = await Promise.all([
-      get('books.json'), get('morph.json'), get('chronology.json')]);
+    const [b, m, c, sc] = await Promise.all([
+      get('books.json'), get('morph.json'), get('chronology.json'),
+      get('schemes.json').catch(() => null)]);
     S.books = b.books; S.names = b.names; S.morph = m; S.chron = c;
+    S.schemes = sc;
     S.books.forEach((x, i) => S.bookIx[x[0]] = { n: x[1], t: x[2], chapters: x[3], i });
     if (!(S.chron.schemes || []).some(s => s.scheme_id === S.scheme))
       S.scheme = (S.chron.schemes[0] || {}).scheme_id || 'jones';
