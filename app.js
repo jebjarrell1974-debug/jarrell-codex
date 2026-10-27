@@ -8,6 +8,7 @@ const S = {
   morph: {}, chron: null, order: null,
   place: null, person: null, event: null, dictIx: null, cmMeta: null,
   man: null, dlTiers: {},
+  fs: 19, theme: 'auto',
   lex: {}, conc: {}, idx: {},
   book: 'Jhn', ch: 3,
   tx: 'KJV', scheme: 'jones', showOrig: true, pron: 'erasmian'
@@ -519,6 +520,50 @@ function xrefSheet(vi) {
   o.push(`<p class="oc" style="margin-top:12px">Treasury of Scripture Knowledge and
     related sets, aggregated by OpenBible.info</p>`);
   sheet(o.join(''));
+}
+
+/* ============================================================ readability */
+/* Written for people who will be reading this at seventy. The default is
+   larger than a designer's instinct, and the range goes further than feels
+   necessary, because the person who needs 28px is exactly the person least
+   likely to go hunting for a setting. */
+const FS_MIN = 17, FS_MAX = 30, FS_STEP = 1;
+
+function applyDisplay() {
+  const r = document.documentElement;
+  r.style.setProperty('--fs', S.fs + 'px');
+  r.setAttribute('data-theme', S.theme);
+}
+
+function displayPanel() {
+  const pct = Math.round(100 * S.fs / 19);
+  return `
+  <p class="lbl" style="margin-top:4px">Text size</p>
+  <div style="display:flex;gap:10px;align-items:stretch;margin:6px 0 10px">
+    <button class="szbtn" data-fs="-1" aria-label="Smaller text"
+      ${S.fs <= FS_MIN ? 'disabled' : ''}>A<span style="font-size:.7em">−</span></button>
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;
+                justify-content:center;border:1px solid var(--line);
+                border-radius:10px;padding:6px">
+      <span style="font-size:var(--t4);font-weight:600">${S.fs}px</span>
+      <span class="ot">${pct}%</span>
+    </div>
+    <button class="szbtn" data-fs="1" aria-label="Larger text"
+      ${S.fs >= FS_MAX ? 'disabled' : ''}>A<span style="font-size:.7em">+</span></button>
+  </div>
+  <p class="de" style="border:1px solid var(--line);border-radius:10px;
+     padding:12px;margin:0 0 6px">For God so loved the world, that he gave his
+     only begotten Son.</p>
+  <p class="ot" style="margin:0 0 18px">That is how a verse will look.</p>
+
+  <p class="lbl">Brightness</p>
+  <div class="tabs" style="margin:6px 0 4px">
+    ${[['auto', 'Match my phone'], ['light', 'Light'], ['dark', 'Dark']]
+      .map(([k, l]) => `<button data-setbright="${k}" class="${S.theme === k ? 'on' : ''}">${l}</button>`).join('')}
+  </div>
+  <p class="pa" style="margin:0 0 18px">Light print on a dark screen can smear
+    for eyes with astigmatism or a cataract, which are common later in life. If
+    dark looks blurry rather than restful, choose Light.</p>`;
 }
 
 /* =========================================================== offline save */
@@ -1045,6 +1090,7 @@ function chaptersSheet(book) {
 }
 function settingsSheet() {
   const o = [`<p class="lbl">Settings</p>`];
+  o.push(displayPanel());
   o.push(`<label class="lbl" style="margin-top:12px" for="txSel">English translation</label>
     <select id="txSel" style="width:100%">${Object.entries(TX).map(([k, v]) =>
       `<option value="${k}" ${S.tx === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>`);
@@ -1071,7 +1117,7 @@ function save() {
   try {
     localStorage.setItem('codex', JSON.stringify(
       { tx: S.tx, scheme: S.scheme, pron: S.pron, showOrig: S.showOrig,
-        book: S.book, ch: S.ch }));
+        book: S.book, ch: S.ch, fs: S.fs, theme: S.theme }));
   } catch { /* private mode, blocked storage — settings just don't persist */ }
 }
 function load() {
@@ -1082,7 +1128,9 @@ function load() {
       scheme: v.scheme || S.scheme,
       pron: PRON[v.pron] ? v.pron : S.pron,
       showOrig: v.showOrig !== false,
-      book: v.book || S.book, ch: v.ch || S.ch
+      book: v.book || S.book, ch: v.ch || S.ch,
+      fs: Math.min(FS_MAX, Math.max(FS_MIN, +v.fs || S.fs)),
+      theme: ['auto', 'light', 'dark'].indexOf(v.theme) >= 0 ? v.theme : S.theme
     });
   } catch { /* ignore */ }
 }
@@ -1113,7 +1161,7 @@ function route() {
 
 /* ========================================================= event wiring */
 document.addEventListener('click', ev => {
-  const t = ev.target.closest('[data-tier],[data-dlstart],[data-dlstop],[data-dlclear],[data-cmf],[data-close],[data-v][data-t],[data-k],[data-ref],[data-conc],[data-dict],[data-book],[data-ch],[data-nav],[data-go],[data-tab],[data-expand]');
+  const t = ev.target.closest('[data-fs],[data-setbright],[data-tier],[data-dlstart],[data-dlstop],[data-dlclear],[data-cmf],[data-close],[data-v][data-t],[data-k],[data-ref],[data-conc],[data-dict],[data-book],[data-ch],[data-nav],[data-go],[data-tab],[data-expand]');
   if (!t) return;
 
   if (t.dataset.close) return closeSheet();
@@ -1127,6 +1175,16 @@ document.addEventListener('click', ev => {
     document.querySelectorAll('.w.sel').forEach(e => e.classList.remove('sel'));
     t.classList.add('sel');
     return void wordSheet(+t.dataset.v, +t.dataset.t);
+  }
+  if (t.dataset.fs) {
+    S.fs = Math.min(FS_MAX, Math.max(FS_MIN, S.fs + (+t.dataset.fs) * FS_STEP));
+    applyDisplay(); save(); settingsSheet();
+    return;
+  }
+  if (t.dataset.setbright) {
+    S.theme = t.dataset.setbright;
+    applyDisplay(); save(); settingsSheet();
+    return;
   }
   if (t.dataset.tier) {
     const k = t.dataset.tier;
@@ -1181,6 +1239,7 @@ document.addEventListener('submit', e => e.preventDefault());
 /* =================================================================== boot */
 async function boot() {
   load();
+  applyDisplay();
   // Register before the first data fetch, not after. The worker claims this
   // page as soon as it activates, so registering late means the chapter you
   // are reading on your very first visit never reaches the cache — and
