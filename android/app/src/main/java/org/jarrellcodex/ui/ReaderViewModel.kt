@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.jarrellcodex.audio.Playback
 import org.jarrellcodex.data.*
 
 data class ReaderState(
@@ -27,6 +28,8 @@ data class ReaderState(
     val fontSize: Int = FS_DEFAULT,
     val palette: Palette = Palette.PAPER,
     val showDisplay: Boolean = false,
+    /** Set only when a reading was asked for and none could be found. */
+    val audioMiss: String? = null,
     val error: String? = null,
     // the commentators, which the reader opts into
     val commentaryReady: Boolean = false,
@@ -94,6 +97,51 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
         _state.value = _state.value.copy(palette = p)
     }
 
+    // ---- the spoken readings ----------------------------------------------
+
+    /**
+     * Resolve the chapter on screen to a reading and start it.
+     *
+     * The index is read from the app's own assets, so this works with no
+     * signal; the audio does not, and the bar says so. Asking for a chapter
+     * that is already inside the file being played only re-labels the bar.
+     */
+    fun listen() = viewModelScope.launch {
+        val s = _state.value
+        val key = "${s.book}.${s.chapter}"
+        val ix = AudioIndex.load(getApplication())
+        val r = ix?.reading(s.book, s.chapter)
+        if (r == null) {
+            _state.value = _state.value.copy(
+                audioMiss = if (ix == null)
+                    "The list of readings could not be read."
+                else "There is no recording for ${key.replace('.', ' ')}.")
+            return@launch
+        }
+        _state.value = _state.value.copy(audioMiss = null)
+        Playback.open(getApplication(), key, r)
+    }
+
+    fun stopListening() {
+        Playback.stop(getApplication())
+    }
+
+    /**
+     * Keep the bar's label in step with the chapter on screen, as long as
+     * the file already playing covers it. Never starts anything.
+     */
+    private suspend fun relabelAudio(book: String, chapter: Int) {
+        val cur = Playback.state.value
+        val r = cur.reading ?: return
+        val key = "$book.$chapter"
+        if (cur.chapterKey == key) return
+        if (!r.covers.contains(key)) return
+        val fresh = AudioIndex.load(getApplication())?.reading(book, chapter) ?: return
+        if (fresh.url == r.url) Playback.open(getApplication(), key, fresh)
+    }
+
+    fun clearAudioMiss() { _state.value = _state.value.copy(audioMiss = null) }
+
     fun open(book: String, chapter: Int) = viewModelScope.launch {
         _state.value = _state.value.copy(loading = true, error = null, selected = null, context = null)
         runCatching {
@@ -116,6 +164,7 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
                 noteCounts = marks.second,
                 xrefCounts = marks.third,
             )
+            relabelAudio(book, chapter)
         }.onFailure { e ->
             _state.value = _state.value.copy(loading = false, error = e.message ?: "Could not open the text")
         }

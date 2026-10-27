@@ -1,7 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- No permissions. The app never touches the network and has nothing to
-         send anywhere. Everything it knows ships inside it. -->
+    <!-- The text, the lexicons, the commentaries and the whole study
+         apparatus ship inside the app and never touch the network.
+         INTERNET is here for one thing only: the spoken readings, which are
+         public-domain LibriVox recordings streamed from archive.org rather
+         than 2.5 GB of audio packed into the download. Every screen that
+         offers a reading says it needs a connection, and the text keeps
+         working without one.
+
+         The foreground service exists so a reading does not stop when the
+         listener puts the phone down. POST_NOTIFICATIONS is not requested:
+         without it the shade shows nothing, the audio still plays, and the
+         app does not open with a permission prompt nobody asked for. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
     <application
         android:allowBackup="false"
         android:label="@string/app_name"
@@ -16,5 +31,9 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <service
+            android:name=".audio.PlaybackService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
     </application>
 </manifest>

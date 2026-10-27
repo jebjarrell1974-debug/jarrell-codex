@@ -46,7 +46,9 @@ fun ReaderScreen(vm: ReaderViewModel) {
         return
     }
 
-    Scaffold(topBar = {
+    Scaffold(bottomBar = {
+        AudioBar(nameOf = { vm.bookName(it) }, onStop = { vm.stopListening() })
+    }, topBar = {
         TopAppBar(
             title = {
                 // The title is the way out of this chapter, so make it a button.
@@ -108,6 +110,14 @@ fun ReaderScreen(vm: ReaderViewModel) {
                     }
                 }
             }
+            item { ListenButton("Listen to this chapter") { vm.listen() } }
+            s.audioMiss?.let { msg ->
+                item {
+                    Text(msg, style = MaterialTheme.typography.bodyMedium,
+                         color = MaterialTheme.colorScheme.error,
+                         modifier = Modifier.padding(vertical = 8.dp))
+                }
+            }
             items(s.verses, key = { it.verseKey }) { v ->
                 val n = v.number.toIntOrNull() ?: -1
                 VerseRow(
@@ -121,6 +131,9 @@ fun ReaderScreen(vm: ReaderViewModel) {
                     onNotes = { vm.openNotes(v.verseKey) },
                     onXrefs = { vm.openXrefs(v.verseKey) },
                 )
+            }
+            item {
+                ListenButton("Listen to ${vm.bookName(s.book)} ${s.chapter}") { vm.listen() }
             }
             item {
                 ChapterStepper(
@@ -316,4 +329,25 @@ private fun VerseRow(
         }
     }
     HorizontalDivider()
+}
+
+
+/**
+ * Says what it does in words, not only in an icon, and clears a 48dp tap
+ * target: the control for people who find reading hard should not itself be
+ * a small target with a mystery symbol on it.
+ */
+@Composable
+private fun ListenButton(label: String, onClick: () -> Unit) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .padding(vertical = 6.dp),
+    ) {
+        Text("\u25b6", style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.width(10.dp))
+        Text(label, style = MaterialTheme.typography.titleSmall)
+    }
 }
