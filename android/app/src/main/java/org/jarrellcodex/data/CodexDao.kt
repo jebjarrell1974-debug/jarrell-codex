@@ -276,6 +276,38 @@ class CodexDao(context: Context) {
         }
     }
 
+    /**
+     * Every event in one scheme's date order, with the first passage that
+     * tells it. Undated events keep the order the text tells them in, and are
+     * marked as undated rather than being given a year from somewhere else.
+     */
+    fun timeline(schemeId: String) = query(
+        """SELECT e.event_id, e.title, e.sort_key, d.start_year, d.end_year,
+                  d.precision,
+                  (SELECT ev.verse_key FROM event_verse ev
+                    JOIN verse v ON v.verse_key = ev.verse_key
+                   WHERE ev.event_id = e.event_id
+                   ORDER BY v.book_order, v.chapter, v.verse LIMIT 1) AS first_ref,
+                  (SELECT COUNT(*) FROM event_verse ev
+                    WHERE ev.event_id = e.event_id) AS verses
+           FROM event e
+           LEFT JOIN event_date d
+                  ON d.event_id = e.event_id AND d.scheme_id = ?
+           ORDER BY CASE WHEN d.start_year IS NULL THEN 1 ELSE 0 END,
+                    d.start_year, e.sort_key""",
+        schemeId,
+    ) { c ->
+        TimelineEntry(
+            eventId = c.int("event_id") ?: 0,
+            title = c.str("title") ?: "",
+            startYear = c.int("start_year"),
+            endYear = c.int("end_year"),
+            precision = c.str("precision"),
+            firstRef = c.str("first_ref"),
+            verseCount = c.int("verses") ?: 0,
+        )
+    }
+
     /** What the About screen has to show: CC BY means attribution travels. */
     fun translations() = query(
         "SELECT code, name, licence FROM translation ORDER BY code",
@@ -311,6 +343,26 @@ class CodexDao(context: Context) {
     fun tokenCount(): Int =
         db.rawQuery("SELECT COUNT(*) FROM token", null)
             .use { if (it.moveToFirst()) it.getInt(0) else 0 }
+}
+
+data class TimelineEntry(
+    val eventId: Int,
+    val title: String,
+    val startYear: Int?,
+    val endYear: Int?,
+    val precision: String?,
+    val firstRef: String?,
+    val verseCount: Int,
+) {
+    val dated: Boolean get() = startYear != null
+
+    /** "4003 BC", or "931 - 913 BC" for something that ran a while. */
+    val whenText: String
+        get() {
+            val a = formatYear(startYear) ?: return "no date in this scheme"
+            val b = if (endYear != null && endYear != startYear) formatYear(endYear) else null
+            return if (b != null) "$a \u2013 $b" else a
+        }
 }
 
 data class SearchHit(val verseKey: String, val text: String) {

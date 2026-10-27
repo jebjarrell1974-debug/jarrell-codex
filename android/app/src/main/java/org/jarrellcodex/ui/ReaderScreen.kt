@@ -59,6 +59,18 @@ fun ReaderScreen(vm: ReaderViewModel) {
                 }
             },
             actions = {
+                // The translation in use, and the way to change it. A code is
+                // narrow enough for a phone's bar and is what a reader who
+                // cares about the difference already recognises.
+                TranslationPicker(
+                    current = s.translationCode,
+                    options = s.translations,
+                    onPick = { vm.chooseTranslation(it) },
+                    onNeedOptions = { vm.loadTranslations() },
+                )
+                IconButton(onClick = { vm.openTimeline() }) {
+                    Text("\u29d6", style = MaterialTheme.typography.titleMedium)
+                }
                 IconButton(onClick = { vm.openSearch() }) {
                     Text("\u2315", style = MaterialTheme.typography.titleLarge)
                 }
@@ -93,6 +105,7 @@ fun ReaderScreen(vm: ReaderViewModel) {
                 val n = v.number.toIntOrNull() ?: -1
                 VerseRow(
                     v = v,
+                    translation = s.translationCode,
                     commentaryCount = s.commentaryCounts[n] ?: 0,
                     noteCount = s.noteCounts[n] ?: 0,
                     xrefCount = s.xrefCounts[n] ?: 0,
@@ -120,6 +133,19 @@ fun ReaderScreen(vm: ReaderViewModel) {
                 chaptersFor = s.pickingChaptersFor,
                 onBook = { vm.pickBook(it) },
                 onChapter = { b, n -> vm.open(b.code, n) },
+            )
+        }
+    }
+
+    s.timeline?.let { entries ->
+        ModalBottomSheet(onDismissRequest = { vm.closeTimeline() }) {
+            TimelineSheet(
+                entries = entries,
+                schemes = s.schemes,
+                schemeId = s.schemeId,
+                nameOf = { vm.bookName(it) },
+                onScheme = { vm.chooseScheme(it) },
+                onGo = { vm.goToFromTimeline(it) },
             )
         }
     }
@@ -173,10 +199,38 @@ fun ReaderScreen(vm: ReaderViewModel) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TranslationPicker(
+    current: String,
+    options: List<TranslationInfo>,
+    onPick: (String) -> Unit,
+    onNeedOptions: () -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        TextButton(onClick = { onNeedOptions(); open = true }) {
+            Text(current, style = MaterialTheme.typography.labelLarge)
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            if (options.isEmpty()) {
+                DropdownMenuItem(text = { Text("Loading\u2026") }, onClick = {})
+            }
+            options.forEach { t ->
+                DropdownMenuItem(
+                    text = { Text(t.name) },
+                    onClick = { onPick(t.code); open = false },
+                )
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun VerseRow(
     v: VerseBlock,
+    translation: String,
     commentaryCount: Int,
     noteCount: Int,
     xrefCount: Int,
@@ -207,7 +261,7 @@ private fun VerseRow(
                     }
                 }
             }
-            v.translations.firstOrNull { it.code == "KJV" }?.let {
+            v.translations.firstOrNull { it.code == translation }?.let {
                 Spacer(Modifier.height(4.dp))
                 Text(
                     it.text,

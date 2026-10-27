@@ -91,6 +91,9 @@ class CodexRepository(private val context: Context) {
             )
         }
 
+    suspend fun timeline(schemeId: String): List<TimelineEntry> =
+        withContext(Dispatchers.IO) { dao.timeline(schemeId) }
+
     suspend fun schemes(): List<Scheme> = withContext(Dispatchers.IO) { dao.schemes() }
 
     suspend fun chronologyNotes(): List<ChronologyNote> =

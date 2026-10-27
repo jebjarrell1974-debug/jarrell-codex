@@ -46,6 +46,9 @@ data class ReaderState(
     val hitsVerses: List<SearchHit> = emptyList(),
     val hitsNotes: List<SearchHit> = emptyList(),
     val hitsWords: List<LexHit> = emptyList(),
+    val timeline: List<TimelineEntry>? = null,
+    // which English translation the reader wants under the original
+    val translationCode: String = "KJV",
     val commentary: List<CommentaryUnit>? = null,
     val commentaryTitle: String = "",
     // kept apart from `error`, which replaces the whole screen. Failing to
@@ -82,6 +85,30 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
             )
         }.onFailure { e ->
             _state.value = _state.value.copy(loading = false, error = e.message ?: "Could not open the text")
+        }
+    }
+
+    // ---- the story in order ----------------------------------------------
+
+    fun openTimeline() = viewModelScope.launch {
+        _state.value = _state.value.copy(timeline = repo.timeline(_state.value.schemeId))
+    }
+
+    fun closeTimeline() { _state.value = _state.value.copy(timeline = null) }
+
+    fun goToFromTimeline(verseKey: String) {
+        closeTimeline()
+        goTo(verseKey)
+    }
+
+    fun chooseTranslation(code: String) {
+        _state.value = _state.value.copy(translationCode = code)
+    }
+
+    /** Loaded on first open rather than at startup; it is four rows. */
+    fun loadTranslations() = viewModelScope.launch {
+        if (_state.value.translations.isEmpty()) {
+            _state.value = _state.value.copy(translations = repo.translations())
         }
     }
 
@@ -285,5 +312,9 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
         val key = _state.value.selected?.token?.verseKey
         val ctx = key?.let { repo.context(it, schemeId) }
         _state.value = _state.value.copy(schemeId = schemeId, context = ctx ?: _state.value.context)
+        // the timeline is ordered by the scheme, so it has to be rebuilt
+        if (_state.value.timeline != null) {
+            _state.value = _state.value.copy(timeline = repo.timeline(schemeId))
+        }
     }
 }

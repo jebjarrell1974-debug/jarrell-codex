@@ -136,7 +136,7 @@ fun WordStudySheet(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SchemePicker(schemes: List<Scheme>, current: String, onPick: (String) -> Unit) {
+internal fun SchemePicker(schemes: List<Scheme>, current: String, onPick: (String) -> Unit) {
     var open by remember { mutableStateOf(false) }
     val label = schemes.firstOrNull { it.schemeId == current }?.name ?: current
     Box {
