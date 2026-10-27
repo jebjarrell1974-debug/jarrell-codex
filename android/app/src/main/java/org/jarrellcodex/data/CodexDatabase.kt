@@ -1,64 +1,58 @@
 package org.jarrellcodex.data
 
 import android.content.Context
-import androidx.room.Database
-import androidx.room.Room
-import androidx.room.RoomDatabase
-import androidx.room.DatabaseView
-import androidx.room.Entity
-import androidx.room.PrimaryKey
+import android.database.sqlite.SQLiteDatabase
 import java.io.File
 import java.util.zip.GZIPInputStream
 
 /**
- * The database is prebuilt by scripts/build_all.sh and shipped read-only.
+ * The database is prebuilt by scripts/build_all.sh and shipped READ-ONLY.
  * Nothing in the app ever writes to it.
  *
- * It travels gzipped (64 MB) and Room expands it to ~226 MB in app storage on
- * first launch. That keeps the APK comfortably under Play's 500 MB base-module
- * limit with no asset pack and no first-run download, so the app works the
- * moment it is installed - on a plane, in a basement, on a handed-over phone
- * with no SIM.
+ * Deliberately not Room. Room verifies every @Query against a schema it builds
+ * from declared @Entity classes, which would mean restating all 19 tables just
+ * to satisfy a compile-time check on a file that is generated, fixed, and
+ * never migrated. Room's migration machinery is dead weight for a read-only
+ * asset, and the entity declarations would be a second source of truth free to
+ * drift from the real schema. Plain SQLite is less code and has no such drift.
  *
- * Entities are declared only to satisfy Room's compile-time schema check; the
- * rows themselves are read through CodexDao's explicit SQL.
+ * It travels gzipped (61 MB) and is expanded to ~226 MB in app storage on
+ * first launch - inside Play's 500 MB base-module limit, so there is no asset
+ * pack and no first-run download. The app works the moment it is installed.
  */
-@Entity(tableName = "verse")
-data class VerseEntity(
-    @PrimaryKey val verse_key: String,
-    val book: String?, val book_order: Int?, val chapter: Int?, val verse: Int?,
-    val testament: String?, val alt_ref: String?,
-)
+object CodexDatabase {
 
-@Database(
-    entities = [VerseEntity::class],
-    views = [],
-    version = 1,
-    exportSchema = false,
-)
-abstract class CodexDatabase : RoomDatabase() {
-    abstract fun dao(): CodexDao
+    private const val ASSET = "codex.db.gz"
+    private const val NAME = "codex.db"
+    @Volatile private var db: SQLiteDatabase? = null
 
-    companion object {
-        private const val ASSET = "codex.db.gz"
-        private const val NAME = "codex.db"
-        @Volatile private var instance: CodexDatabase? = null
+    fun isUnpacked(context: Context): Boolean =
+        context.getDatabasePath(NAME).let { it.exists() && it.length() > 0 }
 
-        fun get(context: Context): CodexDatabase =
-            instance ?: synchronized(this) {
-                instance ?: build(context.applicationContext).also { instance = it }
+    /** Blocks on first call while the database is expanded. Call off the main thread. */
+    fun open(context: Context): SQLiteDatabase =
+        db ?: synchronized(this) { db ?: unpackAndOpen(context.applicationContext).also { db = it } }
+
+    private fun unpackAndOpen(context: Context): SQLiteDatabase {
+        val target = context.getDatabasePath(NAME)
+        if (!isUnpacked(context)) {
+            target.parentFile?.mkdirs()
+            // Expand to a temporary file first, then rename. A half-written
+            // database left by a kill during unpacking would otherwise look
+            // complete on the next launch and fail in a far more confusing way.
+            val tmp = File(target.parentFile, "$NAME.part")
+            if (tmp.exists()) tmp.delete()
+            GZIPInputStream(context.assets.open(ASSET)).use { input ->
+                tmp.outputStream().use { out -> input.copyTo(out, 1 shl 16) }
             }
-
-        private fun build(context: Context): CodexDatabase =
-            Room.databaseBuilder(context, CodexDatabase::class.java, NAME)
-                // Room copies from this stream once, on first open.
-                .createFromInputStream { GZIPInputStream(context.assets.open(ASSET)) }
-                .fallbackToDestructiveMigration()   // prebuilt and read-only: just re-copy
-                .setJournalMode(JournalMode.TRUNCATE)  // read-only; no WAL sidecar needed
-                .build()
-
-        /** True once the expanded database exists on disk. */
-        fun isUnpacked(context: Context): Boolean =
-            File(context.getDatabasePath(NAME).path).exists()
+            if (!tmp.renameTo(target)) {
+                tmp.delete()
+                error("Could not move the unpacked database into place")
+            }
+        }
+        return SQLiteDatabase.openDatabase(
+            target.path, null,
+            SQLiteDatabase.OPEN_READONLY or SQLiteDatabase.NO_LOCALIZED_COLLATORS,
+        )
     }
 }

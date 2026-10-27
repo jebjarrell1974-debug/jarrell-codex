@@ -1,30 +1,29 @@
-# Versions were not verified against a live Gradle resolve - this project has
-# never been compiled (see README). Run `./gradlew :app:dependencies` once and
-# bump anything Gradle complains about before trusting these numbers.
 [versions]
-agp = "8.7.3"
+# Pinned to what is installed on the build machine: Gradle 8.7, JDK 17,
+# SDK platform android-34, build-tools 34.0.0.
+# AGP 8.5.x is the newest Gradle 8.7 accepts; 8.7 would demand Gradle 8.9.
+agp = "8.5.2"
 kotlin = "2.0.21"
-ksp = "2.0.21-1.0.27"
-room = "2.6.1"
-composeBom = "2024.12.01"
+composeBom = "2024.10.01"
 activityCompose = "1.9.3"
 lifecycle = "2.8.7"
-coreKtx = "1.15.0"
+coreKtx = "1.13.1"
+
+# No Room, and therefore no KSP. The database is prebuilt and read-only, so
+# Room's compile-time query verification would require restating all 19 tables
+# as @Entity classes purely to satisfy a check on a file that never migrates.
+# Plain android.database.sqlite is less code and cannot drift from the schema.
 
 [libraries]
-androidx-core-ktx        = { group = "androidx.core",            name = "core-ktx",                 version.ref = "coreKtx" }
-androidx-activity-compose= { group = "androidx.activity",        name = "activity-compose",         version.ref = "activityCompose" }
-androidx-lifecycle-vm    = { group = "androidx.lifecycle",       name = "lifecycle-viewmodel-compose", version.ref = "lifecycle" }
-compose-bom              = { group = "androidx.compose",         name = "compose-bom",              version.ref = "composeBom" }
-compose-ui               = { group = "androidx.compose.ui",      name = "ui" }
-compose-ui-tooling       = { group = "androidx.compose.ui",      name = "ui-tooling-preview" }
-compose-material3        = { group = "androidx.compose.material3", name = "material3" }
-room-runtime             = { group = "androidx.room",            name = "room-runtime",             version.ref = "room" }
-room-ktx                 = { group = "androidx.room",            name = "room-ktx",                 version.ref = "room" }
-room-compiler            = { group = "androidx.room",            name = "room-compiler",            version.ref = "room" }
+androidx-core-ktx         = { group = "androidx.core",              name = "core-ktx",                    version.ref = "coreKtx" }
+androidx-activity-compose = { group = "androidx.activity",          name = "activity-compose",            version.ref = "activityCompose" }
+androidx-lifecycle-vm     = { group = "androidx.lifecycle",         name = "lifecycle-viewmodel-compose", version.ref = "lifecycle" }
+compose-bom               = { group = "androidx.compose",           name = "compose-bom",                 version.ref = "composeBom" }
+compose-ui                = { group = "androidx.compose.ui",        name = "ui" }
+compose-ui-tooling        = { group = "androidx.compose.ui",        name = "ui-tooling-preview" }
+compose-material3         = { group = "androidx.compose.material3", name = "material3" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android      = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose      = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
-ksp                 = { id = "com.google.devtools.ksp", version.ref = "ksp" }

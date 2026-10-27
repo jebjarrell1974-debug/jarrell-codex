@@ -9,3 +9,5 @@ __pycache__/
 
 # Generated demo slice for the reference reader
 reader/demo.json
+.gradlehome/
+local.properties
