@@ -25,6 +25,9 @@ to pay to read the Bible in its own language.
 | **Translations** | KJV, ASV, Darby and Young's Literal, aligned verse by verse to the original |
 | **Geography** | 1,342 places with coordinates, confidence ratings and Wikidata links |
 | **Versification** | 20,623 mappings reconciling English, Hebrew, Greek and Latin verse numbering |
+| **People** | 3,067 people with dates, linked to 28,240 verses |
+| **Events** | A 450-event timeline, linked to 17,570 verses |
+| **Dictionary** | Easton's 1897, 6,519 senses across 3,964 headwords, 2,818 tied to a named person |
 
 ## The idea in one sentence
 
@@ -41,17 +44,18 @@ places, notes, audio — hangs off two stable keys and nothing has to be redone.
 
     ./scripts/build_all.sh
 
-About three minutes. Needs `python3` and `git`, nothing else — no frameworks,
+About four minutes. Needs `python3` and `git`, nothing else — no frameworks,
 no package installs. Sources are cloned fresh and pinned by commit hash and
 SHA-256 in `build/manifest.json`, so a rebuild is reproducible down to the byte.
 
-The database is a build artifact and is not committed. 217 MB on disk,
-60 MB compressed.
+The database is a build artifact and is not committed. 226 MB on disk,
+about 60 MB compressed — an ordinary app download, which is why the whole
+thing ships inside the app instead of needing a server.
 
 ## Is it right?
 
-`scripts/09_acceptance.py` proves the thing works before anything is built on
-it: 20 checks, 0 failures. It walks the first word of Genesis 1:1 and of
+`scripts/09_acceptance.py` and `scripts/12_acceptance_run2.py` prove the thing
+works before anything is built on it: 35 checks, 0 failures. It walks the first word of Genesis 1:1 and of
 John 1:1 through all five layers, confirms the versification actually
 reconciles (KJV 2 Corinthians 13:14 resolves to the Greek 13:13), and refuses
 to pass on orphan rows or unresolved morphology.
@@ -76,5 +80,5 @@ Code is **MPL-2.0**. The data carries its own licences and its own obligations �
 see **[ATTRIBUTION.md](ATTRIBUTION.md)**, which must travel with any copy.
 
 Built on the generosity of scholars who gave their work away: Tyndale House
-Cambridge, Clear Bible, OpenBible.info, and the Westminster Leningrad Codex
-through OpenScriptures.
+Cambridge, Clear Bible, OpenBible.info, Theographic, and the Westminster
+Leningrad Codex through OpenScriptures.

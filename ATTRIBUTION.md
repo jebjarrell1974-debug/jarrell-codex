@@ -11,6 +11,7 @@ the data.**
 > **Tyndale House, Cambridge** (CC BY 4.0).
 > Syntax and linguistic data from **Clear Bible, Inc.** — MACULA (CC BY 4.0).
 > Place data from **OpenBible.info** Bible Geocoding Data (CC BY 4.0).
+> People, events and dictionary data from **Theographic Bible Metadata**.
 
 ## Sources
 
@@ -25,6 +26,8 @@ the data.**
 | MACULA Hebrew / Greek (Clear Bible) | Independent cross-check | CC BY 4.0 |
 | OpenScriptures WLC (via MACULA) | Independent cross-check | CC BY 4.0 |
 | OpenBible.info Bible Geocoding Data | Places, coordinates, confidence | CC BY 4.0 |
+| Theographic Bible Metadata | People, events timeline, Easton's dictionary | CC BY-SA 4.0 |
+| Easton's Bible Dictionary (1897) | Dictionary entries | Public domain |
 | KJV, ASV, Darby, Young's Literal | English translations | Public domain |
 
 ## Obligations to keep in mind

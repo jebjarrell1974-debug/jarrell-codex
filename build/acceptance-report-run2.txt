@@ -1,0 +1,29 @@
+=== geography ======================================
+  [PASS] Jerusalem has plausible coordinates  31.7767, 35.2342
+  [PASS] a genuinely lost place has NO coordinates  Nod -> unknown
+  [PASS] a region is not reported as unknown  Egypt -> region
+  [PASS] Acts 17 returns Paul's itinerary  Amphipolis, Apollonia, Areopagus, Athens, Berea, Thessalonica
+  [PASS] every place-verse link resolves  0 unresolved
+
+=== people =========================================
+  [PASS] Moses is present with dates  b.-1570 d.-1451
+  [PASS] Moses is linked to many verses  774 verses
+  [PASS] Genesis 1:1 names God  God
+
+=== events =========================================
+  [PASS] event timeline loaded  450 events
+  [PASS] timeline is ordered  earliest: Creation of all things (-4003)
+  [PASS] events join to verses  Exodus 14 -> Wilderness Wanderings
+
+=== dictionary =====================================
+  [PASS] Easton's loaded without collapsing senses  6,519 senses / 3,964 headwords
+  [PASS] multi-sense headwords keep every sense  'Abda' has 3 senses
+  [PASS] dictionary senses link to people  2,818 linked
+
+=== one verse, every layer =========================
+  Act.17.22: 18 Greek words | places ['Areopagus', 'Athens'] | people ['Paul']
+  KJV: Then Paul stood in the midst of Mars’ hill, and said, Ye men of Athens, I perceive that [...]
+  [PASS] a single verse joins text, places, people and translation
+
+========================================================
+RESULT: 15 passed, 0 failed
