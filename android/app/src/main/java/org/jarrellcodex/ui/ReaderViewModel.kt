@@ -23,6 +23,10 @@ data class ReaderState(
     val pickingChaptersFor: BookRef? = null,
     val schemes: List<Scheme> = emptyList(),
     val schemeId: String = "jones",
+    // how the text looks, which the reader controls and the app remembers
+    val fontSize: Int = FS_DEFAULT,
+    val palette: Palette = Palette.PAPER,
+    val showDisplay: Boolean = false,
     val error: String? = null,
     // the commentators, which the reader opts into
     val commentaryReady: Boolean = false,
@@ -58,14 +62,43 @@ data class ReaderState(
 
 class ReaderViewModel(app: Application) : AndroidViewModel(app) {
     private val repo = CodexRepository(app)
-    private val _state = MutableStateFlow(ReaderState())
+    private val prefs = Prefs(app)
+    private val _state = MutableStateFlow(
+        ReaderState(
+            fontSize = prefs.fontSize,
+            palette = prefs.palette,
+            translationCode = prefs.translation,
+            schemeId = prefs.chronology,
+        )
+    )
     val state: StateFlow<ReaderState> = _state.asStateFlow()
 
-    init { open("Gen", 1) }
+    // Opens where the reader left off, not at Genesis 1. Someone three
+    // weeks into Jeremiah should not have to find their way back.
+    init { open(prefs.lastBook, prefs.lastChapter) }
+
+    // ---- how the text looks -----------------------------------------------
+
+    fun openDisplay() { _state.value = _state.value.copy(showDisplay = true) }
+    fun closeDisplay() { _state.value = _state.value.copy(showDisplay = false) }
+
+    /** Clamped here as well as in Prefs: the UI should never be the only guard. */
+    fun setFontSize(sp: Int) {
+        val v = sp.coerceIn(FS_MIN, FS_MAX)
+        prefs.fontSize = v
+        _state.value = _state.value.copy(fontSize = v)
+    }
+
+    fun setPalette(p: Palette) {
+        prefs.palette = p
+        _state.value = _state.value.copy(palette = p)
+    }
 
     fun open(book: String, chapter: Int) = viewModelScope.launch {
         _state.value = _state.value.copy(loading = true, error = null, selected = null, context = null)
         runCatching {
+            prefs.lastBook = book
+            prefs.lastChapter = chapter
             val schemes = repo.schemes()
             val books = if (_state.value.books.isEmpty()) repo.books() else _state.value.books
             val default = schemes.firstOrNull { it.isDefault }?.schemeId ?: "jones"
@@ -102,6 +135,7 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun chooseTranslation(code: String) {
+        prefs.translation = code
         _state.value = _state.value.copy(translationCode = code)
     }
 
@@ -309,6 +343,7 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun chooseScheme(schemeId: String) = viewModelScope.launch {
+        prefs.chronology = schemeId
         val key = _state.value.selected?.token?.verseKey
         val ctx = key?.let { repo.context(it, schemeId) }
         _state.value = _state.value.copy(schemeId = schemeId, context = ctx ?: _state.value.context)

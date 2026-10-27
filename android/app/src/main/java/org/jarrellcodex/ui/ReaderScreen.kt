@@ -68,6 +68,13 @@ fun ReaderScreen(vm: ReaderViewModel) {
                     onPick = { vm.chooseTranslation(it) },
                     onNeedOptions = { vm.loadTranslations() },
                 )
+                // Text size and colours. Labelled in letters rather than a
+                // glyph, because the control for making text readable should
+                // not itself be the smallest thing in the bar.
+                IconButton(onClick = { vm.openDisplay() }) {
+                    Text("Aa", style = MaterialTheme.typography.titleMedium,
+                         fontWeight = FontWeight.SemiBold)
+                }
                 IconButton(onClick = { vm.openTimeline() }) {
                     Text("\u29d6", style = MaterialTheme.typography.titleMedium)
                 }
@@ -123,6 +130,17 @@ fun ReaderScreen(vm: ReaderViewModel) {
                     onStep = { vm.step(it) },
                 )
             }
+        }
+    }
+
+    if (s.showDisplay) {
+        ModalBottomSheet(onDismissRequest = { vm.closeDisplay() }) {
+            DisplaySheet(
+                fontSize = s.fontSize,
+                palette = s.palette,
+                onFontSize = { vm.setFontSize(it) },
+                onPalette = { vm.setPalette(it) },
+            )
         }
     }
 
