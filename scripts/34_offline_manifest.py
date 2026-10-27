@@ -55,6 +55,16 @@ tiers['search'] = {
     'files': walk('idx'),
 }
 
+pix = walk('pix')
+if os.path.exists(f'{DATA}/pix_manifest.json'):
+    pix.append(['data/pix_manifest.json', os.path.getsize(f'{DATA}/pix_manifest.json')])
+tiers['pictures'] = {
+    'label': 'Photographs of the places',
+    'note': 'A photograph of each biblical site that has one \u2014 307 of the '
+            '1,342 places. The rest have no picture, and say so.',
+    'files': sorted(pix),
+}
+
 tiers['commentary'] = {
     'label': 'The commentators',
     'note': 'Henry, the Geneva notes, Calvin, Poole, Trapp and Spurgeon on '

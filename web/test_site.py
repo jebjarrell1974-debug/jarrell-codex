@@ -208,7 +208,7 @@ async def main():
             await pg.locator('.hit').count())
         chk('BC years shown', ' BC' in t)
         await pg.screenshot(path=f'{SHOT}/08-chrono.png')
-        await pg.select_option('#schemeSel', 'ussher'); await pg.wait_for_timeout(900)
+        await pg.locator('[data-setscheme2="ussher"]').click(); await pg.wait_for_timeout(1200)
         t = await pg.inner_text('#view')
         chk('partial-scheme warning', 'only anchors' in t, t[:300])
         await pg.screenshot(path=f'{SHOT}/09-chrono-ussher.png')
@@ -227,8 +227,8 @@ async def main():
         t = await pg.inner_text('#view')
         chk('offline page loads', 'keep it offline' in t.lower(), t[:200])
         tiers = await pg.locator('[data-tier]').count()
-        chk('four tiers offered', tiers == 4, tiers)
-        for want in ['The text', 'Word study', 'Search', 'commentators']:
+        chk('five tiers offered', tiers == 5, tiers)
+        for want in ['The text', 'Word study', 'Search', 'commentators', 'Photographs']:
             chk(f'tier {want}', want.lower() in t.lower())
         chk('a total size is shown', 'MB' in t, t[:200])
         label = await pg.locator('[data-dlstart]').inner_text()
@@ -248,9 +248,9 @@ async def main():
         await pg.wait_for_timeout(700)
         await pg.screenshot(path=f'{SHOT}/17-offline.png')
         # the real thing: download one tier and confirm it is cached
-        await pg.locator('[data-tier="text"]').click()
-        await pg.locator('[data-tier="commentary"]').click()
-        await pg.locator('[data-tier="study"]').click()
+        for t in ('text', 'commentary', 'study', 'pictures'):
+            await pg.locator(f'[data-tier="{t}"]').click()
+            await pg.wait_for_timeout(250)
         await pg.wait_for_timeout(900)
         lbl = await pg.locator('[data-dlstart]').inner_text()
         chk('only the search tier left selected', mb(lbl) < 20, lbl)
@@ -305,10 +305,10 @@ async def main():
         await reset('#/Jhn.3')
         await pg.locator('#btnSet').click(); await pg.wait_for_timeout(400)
         chk('settings sheet', 'greek pronunciation' in (await pg.inner_text('#sheet')).lower())
-        await pg.select_option('#txSel', 'YLT'); await pg.wait_for_timeout(600)
+        await pg.locator('[data-settx="YLT"]').click(); await pg.wait_for_timeout(700)
         chk('translation switched', "Young's Literal" in await pg.inner_text('#view'),
             (await pg.inner_text('#view'))[:200])
-        await pg.select_option('#prSel', 'modern'); await pg.wait_for_timeout(500)
+        await pg.locator('[data-setpron="modern"]').click(); await pg.wait_for_timeout(600)
         chk('pronunciation note', 'Modern Greek' in await pg.inner_text('#sheet'))
         await pg.screenshot(path=f'{SHOT}/11-settings.png')
 
@@ -375,8 +375,10 @@ async def main():
                                    has_touch=True, color_scheme='dark')
         pg2 = await ctx2.new_page()
         await pg2.goto(BASE + '#/Jhn.3', wait_until='networkidle'); await pg2.wait_for_timeout(900)
+        await pg2.evaluate("document.documentElement.setAttribute('data-theme','dark')")
+        await pg2.wait_for_timeout(300)
         bg = await pg2.evaluate("getComputedStyle(document.body).backgroundColor")
-        chk('dark mode applied', bg != 'rgb(248, 247, 244)', bg)
+        chk('the dark palette renders', bg != 'rgb(248, 247, 244)', bg)
         await pg2.screenshot(path=f'{SHOT}/14-dark.png')
         await b.close()
 

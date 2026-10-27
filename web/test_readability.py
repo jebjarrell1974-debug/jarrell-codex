@@ -94,8 +94,11 @@ async def main():
         chk('every control is at least 44px tall', len(taps) == 0, taps[:6])
 
         print('\nthe size control')
-        await pg.locator('#btnSet').click(); await pg.wait_for_timeout(500)
-        chk('settings opens (not hijacked by the root attribute)',
+        # the reading controls must be one tap from the page being read,
+        # not two taps down inside Settings
+        chk('an Aa button sits in the reading bar', await pg.locator('#btnAa').count() == 1)
+        await pg.locator('#btnAa').click(); await pg.wait_for_timeout(500)
+        chk('Aa opens the text size control directly',
             'text size' in (await pg.inner_text('#sheet')).lower())
         start = await pg.evaluate("parseFloat(getComputedStyle(document.documentElement).fontSize)")
         for _ in range(20):
@@ -119,24 +122,45 @@ async def main():
         nv = await pg.locator('.v').count()
         chk('the chapter still renders at the largest size', nv == 36, nv)
 
-        print('\nforcing light mode on a dark phone')
+        print('\nbrightness is the reader\'s choice, not the phone\'s')
         await ctx.close()
         ctx2 = await b.new_context(viewport={'width': 390, 'height': 844},
                                    is_mobile=True, has_touch=True, color_scheme='dark')
         pg2 = await ctx2.new_page()
-        await pg2.goto(BASE + '#/Jhn.3', wait_until='load'); await pg2.wait_for_timeout(1500)
-        darkbg = await pg2.evaluate("getComputedStyle(document.body).backgroundColor")
-        await pg2.locator('#btnSet').click(); await pg2.wait_for_timeout(500)
-        await pg2.locator('[data-setbright="light"]').click(); await pg2.wait_for_timeout(600)
-        lightbg = await pg2.evaluate("getComputedStyle(document.body).backgroundColor")
-        chk('the phone is in dark mode', darkbg != lightbg, f'{darkbg} / {lightbg}')
-        chk('choosing Light overrides the phone',
-            'rgb(248, 247, 244)' in lightbg, lightbg)
-        con2 = await pg2.evaluate(LUM + """() => {
+        await pg2.goto(BASE + '#/Jhn.3', wait_until='load'); await pg2.wait_for_timeout(1800)
+        # light is the default now (Piepenbrock 2013), even on a dark phone
+        bg0 = await pg2.evaluate("getComputedStyle(document.body).backgroundColor")
+        chk('a dark phone still gets light by default', 'rgb(248, 247, 244)' in bg0, bg0)
+        await pg2.locator('#btnAa').click(); await pg2.wait_for_timeout(500)
+        await pg2.locator('[data-setbright="dark"]').click(); await pg2.wait_for_timeout(600)
+        bgd = await pg2.evaluate("getComputedStyle(document.body).backgroundColor")
+        chk('choosing Dark actually goes dark', bgd != bg0, bgd)
+        cond = await pg2.evaluate(LUM + """() => {
             const bg = getComputedStyle(document.body).backgroundColor;
             return ratio(getComputedStyle(document.querySelector('.eng')).color, bg); }""")
-        chk('forced light mode still meets AAA', con2 >= 7, f'{con2:.2f}:1')
+        chk('dark mode meets AAA too', cond >= 7, f'{cond:.2f}:1')
+        await pg2.locator('[data-setbright="light"]').click(); await pg2.wait_for_timeout(600)
+        bgl = await pg2.evaluate("getComputedStyle(document.body).backgroundColor")
+        chk('choosing Light goes back', 'rgb(248, 247, 244)' in bgl, bgl)
+        conl = await pg2.evaluate(LUM + """() => {
+            const bg = getComputedStyle(document.body).backgroundColor;
+            return ratio(getComputedStyle(document.querySelector('.eng')).color, bg); }""")
+        chk('light mode meets AAA', conl >= 7, f'{conl:.2f}:1')
         await pg2.screenshot(path=f'{SHOT}/20-forced-light.png')
+
+        print('\nno dropdowns anywhere')
+        pg3 = await ctx2.new_page()
+        await pg3.goto(BASE + '#/Jhn.3', wait_until='load'); await pg3.wait_for_timeout(1500)
+        found = []
+        for name, opener in [('settings', '#btnSet'), ('reading', '#btnAa')]:
+            await pg3.locator(opener).click(); await pg3.wait_for_timeout(500)
+            n = await pg3.locator('#sheet select').count()
+            if n: found.append((name, n))
+            await pg3.locator('[data-close]').click(); await pg3.wait_for_timeout(300)
+        await pg3.goto(BASE + '#/chrono', wait_until='load'); await pg3.wait_for_timeout(2000)
+        n = await pg3.locator('#view select').count()
+        if n: found.append(('chronology', n))
+        chk('no <select> survives in any panel', not found, found)
         await b.close()
 
     print()

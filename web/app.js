@@ -6,9 +6,9 @@ const D = 'data/';
 const S = {
   books: [], names: {}, bookIx: {},
   morph: {}, chron: null, order: null,
-  place: null, person: null, event: null, dictIx: null, cmMeta: null,
+  place: null, person: null, event: null, dictIx: null, cmMeta: null, pix: null,
   man: null, dlTiers: {},
-  fs: 19, theme: 'auto',
+  fs: 19, theme: 'light',
   lex: {}, conc: {}, idx: {},
   book: 'Jhn', ch: 3,
   tx: 'KJV', scheme: 'jones', showOrig: true, pron: 'erasmian'
@@ -71,7 +71,8 @@ const lazy = {
   person: () => S.person || get('person.json').then(d => S.person = d),
   event: () => S.event || get('event.json').then(d => S.event = d),
   dictIx: () => S.dictIx || get('dict_index.json').then(d => S.dictIx = d),
-  cmMeta: () => S.cmMeta || get('commentary.json').then(d => S.cmMeta = d)
+  cmMeta: () => S.cmMeta || get('commentary.json').then(d => S.cmMeta = d),
+  pix: () => S.pix || get('pix_manifest.json').then(d => S.pix = d)
 };
 
 /* ------------------------------------------------------------- references */
@@ -377,7 +378,7 @@ async function dictSheet(term) {
 /* ------------------------------------------------- place / person / event */
 async function placeSheet(vi, i) {
   const p = (CH.v[vi].p || [])[i]; if (!p) return;
-  await lazy.place();
+  await Promise.all([lazy.place(), lazy.pix().catch(() => {})]);
   const d = (S.place || {})[p[0]] || {};
   const lat = d.lat != null ? d.lat : p[2], lon = d.lon != null ? d.lon : p[3];
   const STAT = {
@@ -389,6 +390,23 @@ async function placeSheet(vi, i) {
   const st = STAT[d.status || p[1]] || STAT.unknown;
   const o = [`<p class="lbl">Place &middot; ${esc(refLabel(CH.b + '.' + CH.c + '.' + CH.v[vi].n))}</p>`];
   o.push(`<div class="hw"><span style="font-size:1.4rem;font-weight:600">${esc(p[0])}</span></div>`);
+  const pic = (S.pix || {})[p[0]];
+  if (pic) {
+    // Attribution is a licence condition for most of these, not a courtesy,
+    // so the credit travels with the picture rather than being tucked away.
+    const credit = [pic.artist, pic.licence].filter(Boolean).join(' \u00b7 ');
+    o.push(`<figure style="margin:0 0 14px">
+      <img src="data/pix/${esc(pic.file)}" alt="Photograph of ${esc(p[0])}"
+        width="${pic.w}" height="${pic.h}" loading="lazy" decoding="async"
+        style="width:100%;height:auto;border-radius:10px;display:block;
+               background:var(--line-soft)">
+      <figcaption class="oc" style="margin-top:6px">${
+        (d.status || p[1]) === 'disputed'
+          ? 'A photograph of <b>one</b> of the proposed sites. '
+          : ''}${credit ? esc(credit) : 'Wikimedia Commons'}${
+        pic.page ? ` \u00b7 <a href="${esc(pic.page)}" target="_blank" rel="noopener">source</a>` : ''
+      }</figcaption></figure>`);
+  }
   if (d.modern) o.push(`<p class="de">Today: <b>${esc(d.modern)}</b></p>`);
   o.push(`<p class="pa"><b>${esc(st[0])}.</b> ${esc(st[1])}</p>`);
   if (d.types) o.push(`<p class="pa">Type: ${esc(String(d.types).replace(/[,;]+/g, ', '))}</p>`);
@@ -407,9 +425,20 @@ async function placeSheet(vi, i) {
     } else if (st2 === 'identified') {
       o.push('<p class="pa">The sources are unanimous on this one.</p>');
     }
-    o.push(`<p style="margin-top:10px"><a class="more" style="display:inline-block"
-      target="_blank" rel="noopener"
-      href="https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=9/${lat}/${lon}">Open the map ↗</a></p>`);
+    // Three ways to look at it: the plain map, the ground from above, and
+    // street level wherever anyone has driven a camera down that road.
+    o.push(`<p class="lbl" style="margin:16px 0 6px">Go and look</p>
+      <div class="opts">
+      <a class="opt" target="_blank" rel="noopener"
+        href="https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=10/${lat}/${lon}">Map ↗</a>
+      <a class="opt" target="_blank" rel="noopener"
+        href="https://www.google.com/maps/@${lat},${lon},2500m/data=!3m1!1e3">From above ↗</a>
+      <a class="opt" target="_blank" rel="noopener"
+        href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lon}">Stand there and look around ↗</a>
+      </div>
+      <p class="pa">Street level only exists where somebody has driven a camera
+      down that road, which for a good many of these is nowhere. All three open
+      in another app and need a connection.</p>`);
   } else o.push('<p class="oc">No coordinates — the site is unlocated.</p>');
   if (d.n) {
     o.push(`<p class="lbl" style="margin:18px 0 6px">Named in ${d.n} verse${d.n === 1 ? '' : 's'}</p>`);
@@ -535,6 +564,11 @@ function applyDisplay() {
   r.setAttribute('data-theme', S.theme);
 }
 
+function displaySheet() {
+  sheet(`<p class="lbl">Reading</p>` + displayPanel() +
+    `<button class="more" data-go="offline">Keep it offline \u2014 download the whole Bible \u2192</button>`);
+}
+
 function displayPanel() {
   const pct = Math.round(100 * S.fs / 19);
   return `
@@ -558,12 +592,14 @@ function displayPanel() {
 
   <p class="lbl">Brightness</p>
   <div class="tabs" style="margin:6px 0 4px">
-    ${[['auto', 'Match my phone'], ['light', 'Light'], ['dark', 'Dark']]
+    ${[['light', 'Light'], ['dark', 'Dark'], ['auto', 'Match my phone']]
       .map(([k, l]) => `<button data-setbright="${k}" class="${S.theme === k ? 'on' : ''}">${l}</button>`).join('')}
   </div>
-  <p class="pa" style="margin:0 0 18px">Light print on a dark screen can smear
-    for eyes with astigmatism or a cataract, which are common later in life. If
-    dark looks blurry rather than restful, choose Light.</p>`;
+  <p class="pa" style="margin:0 0 18px">Dark print on a light page tested
+    better for most readers over sixty, so that is the default. But readers
+    with a cataract often do better the other way round, because a dark screen
+    throws less light to scatter. Try both and keep whichever is easier —
+    your own eyes are the evidence here, not ours.</p>`;
 }
 
 /* =========================================================== offline save */
@@ -926,11 +962,11 @@ async function chronoView() {
   o.push(`<h1 style="font-size:1.3rem;margin:6px 0 2px">The story in order</h1>`);
   o.push(`<p class="ot" style="margin:0 0 14px">${ord.dated.length} dated events
     &middot; ${S.order.order ? Object.keys(S.order.order).length : 0} schemes to choose from</p>`);
-  o.push(`<label class="lbl" for="schemeSel">Chronology</label>
-    <select id="schemeSel" style="width:100%;margin-bottom:10px">${
-      (S.chron.schemes || []).map(s => `<option value="${esc(s.scheme_id)}"
-        ${s.scheme_id === S.scheme ? 'selected' : ''}>${esc(s.name)}${
-        s.coverage === 'full' ? '' : ' — partial'}</option>`).join('')}</select>`);
+  o.push(`<p class="lbl">Chronology</p>
+    <div class="opts" style="margin-bottom:10px">${(S.chron.schemes || []).map(s =>
+      `<button class="opt ${s.scheme_id === S.scheme ? 'on' : ''}" data-setscheme2="${esc(s.scheme_id)}">${
+        s.scheme_id === S.scheme ? '\u2713 ' : ''}${esc(s.name)}${
+        s.coverage === 'full' ? '' : ' — partial'}</button>`).join('')}</div>`);
   if (sch.summary) o.push(`<p class="de" style="color:var(--ink-soft)">${esc(sch.summary)}</p>`);
   if (sch.source) o.push(`<p class="oc">${esc(sch.source)}</p>`);
 
@@ -967,9 +1003,7 @@ async function chronoView() {
   o.push(footer());
   $('#view').innerHTML = o.join('');
   window.scrollTo(0, 0);
-  $('#schemeSel').onchange = e => {
-    S.scheme = e.target.value; save(); chronoView();
-  };
+
 }
 
 /* ================================================================== about */
@@ -1090,26 +1124,29 @@ function chaptersSheet(book) {
 }
 function settingsSheet() {
   const o = [`<p class="lbl">Settings</p>`];
-  o.push(displayPanel());
-  o.push(`<label class="lbl" style="margin-top:12px" for="txSel">English translation</label>
-    <select id="txSel" style="width:100%">${Object.entries(TX).map(([k, v]) =>
-      `<option value="${k}" ${S.tx === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>`);
-  o.push(`<label class="lbl" style="margin-top:16px" for="prSel">Greek pronunciation</label>
-    <select id="prSel" style="width:100%">${Object.keys(PRON).map(k =>
-      `<option value="${k}" ${S.pron === k ? 'selected' : ''}>${k[0].toUpperCase() + k.slice(1)}</option>`).join('')}</select>
+  o.push(`<button class="opt" data-go2="display" style="margin-bottom:18px">
+    Text size and brightness \u2192</button>`);
+  o.push(`<p class="lbl" style="margin-top:12px">English translation</p>
+    <div class="opts">${Object.entries(TX).map(([k, v]) =>
+      `<button class="opt ${S.tx === k ? 'on' : ''}" data-settx="${k}">${
+        S.tx === k ? '\u2713 ' : ''}${esc(v)}</button>`).join('')}</div>`);
+  o.push(`<p class="lbl" style="margin-top:18px">Greek pronunciation</p>
+    <div class="opts">${Object.keys(PRON).map(k =>
+      `<button class="opt ${S.pron === k ? 'on' : ''}" data-setpron="${k}">${
+        S.pron === k ? '\u2713 ' : ''}${k[0].toUpperCase() + k.slice(1)}</button>`).join('')}</div>
     <p class="pa">${esc(PRON[S.pron])}</p>`);
-  o.push(`<label class="lbl" style="margin-top:16px" for="scSel">Chronology</label>
-    <select id="scSel" style="width:100%">${(S.chron.schemes || []).map(s =>
-      `<option value="${esc(s.scheme_id)}" ${s.scheme_id === S.scheme ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>`);
+  o.push(`<p class="lbl" style="margin-top:18px">Chronology</p>
+    <div class="opts">${(S.chron.schemes || []).map(s =>
+      `<button class="opt ${s.scheme_id === S.scheme ? 'on' : ''}" data-setscheme="${esc(s.scheme_id)}">${
+        s.scheme_id === S.scheme ? '\u2713 ' : ''}${esc(s.name)}</button>`).join('')}</div>`);
   o.push(`<label class="lbl" style="margin-top:16px">Original language</label>
     <button class="chip" id="origTgl" style="margin-top:4px">${S.showOrig ?
       '✓ showing Hebrew / Greek' : 'hidden — English only'}</button>`);
   o.push(`<button class="more" data-go="offline" style="margin-top:22px">Keep it offline — download the whole Bible →</button>`);
   o.push(`<button class="more" data-go="about">About, sources and licences →</button>`);
   sheet(o.join(''));
-  $('#txSel').onchange = e => { S.tx = e.target.value; save(); renderChapter(); };
-  $('#prSel').onchange = e => { S.pron = e.target.value; save(); settingsSheet(); };
-  $('#scSel').onchange = e => { S.scheme = e.target.value; save(); };
+  // buttons now, handled by delegation - a <select> defeated every older
+  // participant Sayago & Blat tested, while larger tappable controls did not
   $('#origTgl').onclick = () => { S.showOrig = !S.showOrig; save(); renderChapter(); settingsSheet(); };
 }
 
@@ -1161,7 +1198,7 @@ function route() {
 
 /* ========================================================= event wiring */
 document.addEventListener('click', ev => {
-  const t = ev.target.closest('[data-fs],[data-setbright],[data-tier],[data-dlstart],[data-dlstop],[data-dlclear],[data-cmf],[data-close],[data-v][data-t],[data-k],[data-ref],[data-conc],[data-dict],[data-book],[data-ch],[data-nav],[data-go],[data-tab],[data-expand]');
+  const t = ev.target.closest('[data-go2],[data-fs],[data-setbright],[data-settx],[data-setpron],[data-setscheme],[data-setscheme2],[data-tier],[data-dlstart],[data-dlstop],[data-dlclear],[data-cmf],[data-close],[data-v][data-t],[data-k],[data-ref],[data-conc],[data-dict],[data-book],[data-ch],[data-nav],[data-go],[data-tab],[data-expand]');
   if (!t) return;
 
   if (t.dataset.close) return closeSheet();
@@ -1178,12 +1215,17 @@ document.addEventListener('click', ev => {
   }
   if (t.dataset.fs) {
     S.fs = Math.min(FS_MAX, Math.max(FS_MIN, S.fs + (+t.dataset.fs) * FS_STEP));
-    applyDisplay(); save(); settingsSheet();
+    applyDisplay(); save(); displaySheet();
     return;
   }
+  if (t.dataset.go2 === 'display') return displaySheet();
+  if (t.dataset.settx)      { S.tx = t.dataset.settx; save(); renderChapter(); settingsSheet(); return; }
+  if (t.dataset.setpron)    { S.pron = t.dataset.setpron; save(); settingsSheet(); return; }
+  if (t.dataset.setscheme)  { S.scheme = t.dataset.setscheme; save(); settingsSheet(); return; }
+  if (t.dataset.setscheme2) { S.scheme = t.dataset.setscheme2; save(); chronoView(); return; }
   if (t.dataset.setbright) {
     S.theme = t.dataset.setbright;
-    applyDisplay(); save(); settingsSheet();
+    applyDisplay(); save(); displaySheet();
     return;
   }
   if (t.dataset.tier) {
@@ -1262,6 +1304,7 @@ async function boot() {
   }
   $('#btnBooks').onclick = booksSheet;
   $('#btnSet').onclick = settingsSheet;
+  $('#btnAa').onclick = displaySheet;
   $('#btnSearch').onclick = () => go('#/search?q=');
   $('#ref').onclick = () => chaptersSheet(S.book);
   $('#scrim').onclick = closeSheet;
