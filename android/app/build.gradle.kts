@@ -41,15 +41,39 @@ android {
         noCompress += listOf("gzip", "webp")
     }
 
+    // Signing, if a key exists. keystore.properties is gitignored and is
+    // created by make-release-key.sh / .bat; without it the release build
+    // comes out unsigned rather than failing, so anyone can still build and
+    // read the code. See README: creating the key is a one-way door, because
+    // the SAME key must sign every release forever or existing installs
+    // cannot update, and Android gives no way to change it afterwards.
+    val keyProps = java.util.Properties().apply {
+        val f = rootProject.file("keystore.properties")
+        if (f.exists()) f.inputStream().use { load(it) }
+    }
+    val haveKey = keyProps.getProperty("storeFile")?.let {
+        rootProject.file(it).exists()
+    } == true
+
+    signingConfigs {
+        if (haveKey) {
+            create("release") {
+                storeFile = rootProject.file(keyProps.getProperty("storeFile"))
+                storePassword = keyProps.getProperty("storePassword")
+                keyAlias = keyProps.getProperty("keyAlias")
+                keyPassword = keyProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (haveKey) signingConfig = signingConfigs.getByName("release")
         }
     }
-    // Sideloaded builds must be signed with the SAME key every release, or
-    // existing installs cannot update and users lose their notes.
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

@@ -65,3 +65,52 @@ Sideloaded releases must use the **same key every time**, or existing installs
 cannot update and users lose their notes. Generate it once, back it up
 somewhere safe, never regenerate. Android treats a differently-signed APK as a
 different app.
+
+## Releasing: the signing key is a one-way door
+
+Android identifies an app by the key that signed it. Every update has to be
+signed with the **same** key, or a phone refuses to install it over the copy
+already there — the reader has to delete the app and lose whatever is in it.
+There is no way to change the key afterwards, and nobody can issue you a new
+one, because the key *is* the identity.
+
+So this repository does not contain a key, and nothing here will create one
+without being asked. A release build with no key present comes out unsigned
+rather than failing, so anyone can still build and read the code.
+
+To create the key, once and for good:
+
+    ./make-release-key.sh "a long passphrase you will not lose"
+    make-release-key.bat "a long passphrase you will not lose"
+
+That writes `release.jks` (RSA 4096, thirty years' validity) and
+`keystore.properties` beside the script. Both are gitignored, and both must
+stay that way: anyone holding them can publish an update that Android will
+install straight over a reader's copy.
+
+**Back both files up immediately, somewhere that is not the machine that
+made them.** Losing them means no future version of this app can ever be
+installed over the one people already have. That is the whole of the risk,
+and it is why this step is left to a person rather than done automatically.
+
+With the key in place:
+
+    gradle :app:assembleRelease     # an APK, for sideloading
+    gradle :app:bundleRelease       # an .aab, for Google Play
+
+A plain APK is capped at 100 MB on Play, and this one is 247 MB, so the Play
+build has to be the bundle. Sideloading has no limit.
+
+## What ships inside the app, and what does not
+
+Inside, and therefore working with no signal at all: the Hebrew, Aramaic and
+Greek with every word parsed, four English translations, the lexicons, the
+places, the people, the events, the dictionary, the cross-references, the
+translators' notes, 307 photographs of places and 150 of Doré's engravings.
+Optionally the six commentaries, unpacked on request.
+
+Not inside: the spoken readings. Those are public-domain LibriVox recordings
+and amount to 2.5 GB, which would treble the download, so they stream from
+archive.org. That is the only reason this app asks for INTERNET, and the only
+thing in it that stops working when the signal does. Every screen that offers
+a reading says so.

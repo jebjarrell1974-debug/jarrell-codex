@@ -16,3 +16,9 @@ local.properties
 .idea/
 *.jks
 *.keystore
+# The release signing key and its passwords. NEVER commit either: anyone
+# holding them can publish an update that Android will install over a
+# reader's copy. See README.
+keystore.properties
+*.jks
+*.keystore
