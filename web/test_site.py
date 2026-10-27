@@ -227,8 +227,8 @@ async def main():
         t = await pg.inner_text('#view')
         chk('offline page loads', 'keep it offline' in t.lower(), t[:200])
         tiers = await pg.locator('[data-tier]').count()
-        chk('five tiers offered', tiers == 5, tiers)
-        for want in ['The text', 'Word study', 'Search', 'commentators', 'Photographs']:
+        chk('six tiers offered', tiers == 6, tiers)
+        for want in ['The text', 'Word study', 'Search', 'commentators', 'Photographs', 'engravings']:
             chk(f'tier {want}', want.lower() in t.lower())
         chk('a total size is shown', 'MB' in t, t[:200])
         label = await pg.locator('[data-dlstart]').inner_text()
@@ -248,7 +248,7 @@ async def main():
         await pg.wait_for_timeout(700)
         await pg.screenshot(path=f'{SHOT}/17-offline.png')
         # the real thing: download one tier and confirm it is cached
-        for t in ('text', 'commentary', 'study', 'pictures'):
+        for t in ('text', 'commentary', 'study', 'pictures', 'engravings'):
             await pg.locator(f'[data-tier="{t}"]').click()
             await pg.wait_for_timeout(250)
         await pg.wait_for_timeout(900)

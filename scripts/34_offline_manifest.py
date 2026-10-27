@@ -65,6 +65,17 @@ tiers['pictures'] = {
     'files': sorted(pix),
 }
 
+dore = walk('dore')
+if os.path.exists(f'{DATA}/dore.json'):
+    dore.append(['data/dore.json', os.path.getsize(f'{DATA}/dore.json')])
+if dore:
+    tiers['engravings'] = {
+        'label': 'Dor\u00e9\u2019s engravings',
+        'note': '150 plates engraved for the Bible in 1866, set in the text '
+                'at the verse each one illustrates.',
+        'files': sorted(dore),
+    }
+
 tiers['commentary'] = {
     'label': 'The commentators',
     'note': 'Henry, the Geneva notes, Calvin, Poole, Trapp and Spurgeon on '

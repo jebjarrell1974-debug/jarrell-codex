@@ -122,30 +122,31 @@ async def main():
         nv = await pg.locator('.v').count()
         chk('the chapter still renders at the largest size', nv == 36, nv)
 
-        print('\nbrightness is the reader\'s choice, not the phone\'s')
+        print('\ncolour is the reader\'s choice, not the phone\'s')
         await ctx.close()
         ctx2 = await b.new_context(viewport={'width': 390, 'height': 844},
                                    is_mobile=True, has_touch=True, color_scheme='dark')
         pg2 = await ctx2.new_page()
         await pg2.goto(BASE + '#/Jhn.3', wait_until='load'); await pg2.wait_for_timeout(1800)
-        # light is the default now (Piepenbrock 2013), even on a dark phone
         bg0 = await pg2.evaluate("getComputedStyle(document.body).backgroundColor")
-        chk('a dark phone still gets light by default', 'rgb(248, 247, 244)' in bg0, bg0)
+        chk('a dark phone still gets Paper by default', '252, 251, 248' in bg0, bg0)
         await pg2.locator('#btnAa').click(); await pg2.wait_for_timeout(500)
-        await pg2.locator('[data-setbright="dark"]').click(); await pg2.wait_for_timeout(600)
+        n = await pg2.locator('[data-setscheme3]').count()
+        chk('a choice of schemes is offered', n >= 6, n)
+        await pg2.locator('[data-setscheme3="night"]').click(); await pg2.wait_for_timeout(600)
         bgd = await pg2.evaluate("getComputedStyle(document.body).backgroundColor")
-        chk('choosing Dark actually goes dark', bgd != bg0, bgd)
+        chk('choosing Night goes dark', bgd != bg0, bgd)
         cond = await pg2.evaluate(LUM + """() => {
             const bg = getComputedStyle(document.body).backgroundColor;
             return ratio(getComputedStyle(document.querySelector('.eng')).color, bg); }""")
-        chk('dark mode meets AAA too', cond >= 7, f'{cond:.2f}:1')
-        await pg2.locator('[data-setbright="light"]').click(); await pg2.wait_for_timeout(600)
+        chk('Night meets AAA', cond >= 7, f'{cond:.2f}:1')
+        await pg2.locator('[data-setscheme3="paper"]').click(); await pg2.wait_for_timeout(600)
         bgl = await pg2.evaluate("getComputedStyle(document.body).backgroundColor")
-        chk('choosing Light goes back', 'rgb(248, 247, 244)' in bgl, bgl)
+        chk('choosing Paper goes back', '252, 251, 248' in bgl, bgl)
         conl = await pg2.evaluate(LUM + """() => {
             const bg = getComputedStyle(document.body).backgroundColor;
             return ratio(getComputedStyle(document.querySelector('.eng')).color, bg); }""")
-        chk('light mode meets AAA', conl >= 7, f'{conl:.2f}:1')
+        chk('Paper meets AAA', conl >= 7, f'{conl:.2f}:1')
         await pg2.screenshot(path=f'{SHOT}/20-forced-light.png')
 
         print('\nno dropdowns anywhere')
