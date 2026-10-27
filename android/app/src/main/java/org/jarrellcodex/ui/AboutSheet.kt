@@ -70,12 +70,32 @@ fun AboutSheet(
             }
         }
 
-        Section("Audio")
+        Section("Spoken readings")
         Spacer(Modifier.height(8.dp))
         Text(
-            "Not here yet. Spoken recordings need a licence from the people who " +
-                "made them, and that request is still outstanding. Everything " +
-                "else works without it.",
+            "Every chapter of all 66 books has a reading, behind the Listen " +
+                "button at each end of the text. They are LibriVox recordings, " +
+                "read by volunteers and released into the public domain.\n\n" +
+                "They are the one thing here that is not inside the app. " +
+                "2.5 GB of audio would treble the download, so the readings " +
+                "stream from archive.org and need a connection. Everything " +
+                "else \u2014 the text, the parsing, the lexicons, the " +
+                "commentaries, the pictures \u2014 works with no signal at all.\n\n" +
+                "Most readings hold several chapters in one file. Where that " +
+                "happens the app puts you near the chapter you asked for, " +
+                "worked out from verse counts rather than from a timing anyone " +
+                "recorded, and says so every time.",
+            style = MaterialTheme.typography.bodySmall, lineHeight = 19.sp,
+        )
+
+        Section("Pictures")
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "150 of Dor\u00e9's engravings sit at the verses they illustrate, and " +
+                "307 places that are still there are photographed in the panel " +
+                "that names them. Each picture carries its licence, its " +
+                "photographer or engraver, and a link to where it came from.\n\n" +
+                "A place with no photograph has none. Nothing stands in for it.",
             style = MaterialTheme.typography.bodySmall, lineHeight = 19.sp,
         )
 
@@ -136,6 +156,18 @@ private val SOURCES = listOf(
         "Translation Notes — verse by verse on wording, idiom and " +
         "background. CC BY-SA 4.0.",
     "MACULA" to "Syntactic and semantic annotation of the original. CC BY 4.0.",
+    "LibriVox, via archive.org" to
+        "The spoken readings \u2014 every chapter of all 66 books, read by " +
+        "volunteers and released into the public domain. Streamed, not stored " +
+        "on this phone, so they need a connection even where the text does not.",
+    "Wikimedia Commons and Wikidata" to
+        "The photographs of the places. Each carries its own licence and " +
+        "photographer where it appears; none were used that are not free to " +
+        "pass on.",
+    "Gustave Dor\u00e9, 1866" to
+        "The 150 engravings set in the text. Dor\u00e9 died in 1883, so the plates " +
+        "have been in the public domain for a century; these scans come from " +
+        "Wikimedia Commons.",
     "Henry, the Geneva notes, Calvin, Poole, Trapp, Spurgeon" to
         "Six commentaries written between 1599 and 1885, all public domain. " +
         "Two larger collections were left out: one carries a fair-use notice " +
