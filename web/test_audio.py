@@ -241,6 +241,27 @@ async def main():
         chk('and that the text itself still works',
             'still works offline' in note.lower(), note)
 
+        print('\nthe lock screen')
+        # Once the phone is in a pocket, the lock screen is the only control
+        # there is. Everything here is optional in the browser, so what is
+        # being checked is that it is offered where it exists.
+        await listen('#/Psa.23')
+        md = await pg.evaluate(
+            "() => { const m = navigator.mediaSession && navigator.mediaSession.metadata;"
+            " return m ? {t: m.title, a: m.artist, al: m.album} : null; }")
+        chk('the chapter is published to the lock screen', md is not None, md)
+        if md:
+            chk('it names the chapter', 'Psalms 23' in md['t'], md['t'])
+            chk('it credits LibriVox', 'LibriVox' in md['a'], md['a'])
+            chk('and says what the whole recording covers',
+                'In a reading of' in md['al'], md['al'])
+        await pg.click('#plX')
+        await pg.wait_for_timeout(250)
+        md2 = await pg.evaluate(
+            "() => navigator.mediaSession ? navigator.mediaSession.metadata : 'nomediasession'")
+        chk('stopping clears it, so the lock screen stops offering it',
+            md2 is None or md2 == 'nomediasession', md2)
+
         print('\ncrediting the readings')
         await reset('#/about')
         ab = await pg.inner_text('#view')

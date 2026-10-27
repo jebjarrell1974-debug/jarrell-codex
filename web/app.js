@@ -1196,11 +1196,40 @@ async function listen(book, ch) {
     AU.seek = auFraction(f, i);
     el.addEventListener('loadedmetadata', auSeek, { once: true });
   }
+  auSession(key, f, src);
   el.play().catch(() => {
     const e = document.getElementById('plEst');
     if (!navigator.onLine) return;
     if (e) e.textContent = 'Press play to start.';
   });
+}
+
+/* The lock screen is the only control a listener has once the phone is in
+   their pocket, so put the chapter and the controls there. Everything here
+   is optional in the browser and all of it is wrapped: an older phone that
+   has none of it still plays the reading. */
+function auSession(key, f, src) {
+  const ms = navigator.mediaSession;
+  if (!ms) return;
+  try {
+    ms.metadata = new MediaMetadata({
+      title: refLabel(key),
+      artist: 'Read by volunteers for LibriVox',
+      album: f.ch.length > 1
+        ? 'In a reading of ' + refLabel(f.ch[0]) + '\u2013' +
+          f.ch[f.ch.length - 1].split('.')[1]
+        : 'The Jarrell Codex',
+    });
+  } catch { /* no MediaMetadata on this browser */ }
+  const set = (action, fn) => {
+    try { ms.setActionHandler(action, fn); } catch { /* unsupported action */ }
+  };
+  const el = auEl();
+  set('play', () => { if (el) el.play().catch(() => {}); });
+  set('pause', () => { if (el) el.pause(); });
+  set('stop', auStop);
+  set('seekbackward', () => { if (el) el.currentTime = Math.max(0, el.currentTime - 30); });
+  set('seekforward', () => { if (el) el.currentTime += 30; });
 }
 
 /** Only once the file's length is known can a fraction become a position. */
@@ -1218,6 +1247,12 @@ function auSeek() {
 function auStop() {
   const el = auEl();
   if (el) { el.pause(); el.removeAttribute('src'); el.load(); }
+  try {
+    if (navigator.mediaSession) {
+      navigator.mediaSession.metadata = null;
+      navigator.mediaSession.playbackState = 'none';
+    }
+  } catch { /* ignore */ }
   AU.fi = AU.key = AU.seek = null;
   const bar = document.getElementById('player');
   if (bar) bar.hidden = true;
