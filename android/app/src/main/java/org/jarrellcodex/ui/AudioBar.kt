@@ -95,6 +95,14 @@ fun AudioBar(nameOf: (String) -> String, onStop: () -> Unit) {
                 }
             }
 
+            if (s.continued) {
+                Text(
+                    "The last reading finished, so this one carried on from it.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
             s.error?.let {
                 Text(it, style = MaterialTheme.typography.bodySmall,
                      color = MaterialTheme.colorScheme.error)

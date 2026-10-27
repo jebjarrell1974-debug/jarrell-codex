@@ -59,6 +59,20 @@ class AudioIndex private constructor(
     val chapterCount: Int get() = where.size
     val fileCount: Int get() = files.size
 
+    /**
+     * The chapter that follows this one, or null at Revelation 22.
+     *
+     * The files run end to end through the whole canon with no gap and no
+     * overlap, so the chapter after a file's last one is the first chapter
+     * of the next file.
+     */
+    fun after(key: String): String? {
+        val p = where[key] ?: return null
+        val f = files.getOrNull(p[0]) ?: return null
+        return if (p[1] + 1 < f.chapters.size) f.chapters[p[1] + 1]
+               else files.getOrNull(p[0] + 1)?.chapters?.firstOrNull()
+    }
+
     fun reading(book: String, chapter: Int): Reading? {
         val p = where["$book.$chapter"] ?: return null
         val f = files.getOrNull(p[0]) ?: return null

@@ -121,6 +121,35 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
      * signal; the audio does not, and the bar says so. Asking for a chapter
      * that is already inside the file being played only re-labels the bar.
      */
+    init {
+        // Set once, so the player can ask for the next reading without
+        // knowing anything about how the index is loaded.
+        Playback.onFinished = { ctx -> continueListening(ctx) }
+    }
+
+    /**
+     * Playback outlives this view model on purpose - a reading should not
+     * stop because the screen rotated - but the callback captures this
+     * object, so drop it rather than leaving a dead view model pinned in a
+     * process-level singleton.
+     */
+    override fun onCleared() {
+        Playback.onFinished = null
+        super.onCleared()
+    }
+
+    private fun continueListening(ctx: android.content.Context) =
+        viewModelScope.launch {
+            val cur = Playback.state.value.reading ?: return@launch
+            val ix = AudioIndex.load(ctx) ?: return@launch
+            val next = ix.after(cur.covers.last()) ?: return@launch
+            val p = next.split('.')
+            if (p.size < 2) return@launch
+            val r = ix.reading(p[0], p[1].toIntOrNull() ?: return@launch)
+                ?: return@launch
+            Playback.open(ctx, next, r, continued = true)
+        }
+
     fun listen() = viewModelScope.launch {
         val s = _state.value
         val key = "${s.book}.${s.chapter}"

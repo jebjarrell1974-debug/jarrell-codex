@@ -36,6 +36,8 @@ object Playback {
         /** True while the position came from the verse-count estimate. */
         val estimated: Boolean = false,
         val estimatedMs: Int = 0,
+        /** True when this reading started because the last one ended. */
+        val continued: Boolean = false,
         val error: String? = null,
     ) {
         val open: Boolean get() = reading != null
@@ -48,13 +50,19 @@ object Playback {
     private var seekOnReady: Float? = null
 
     /**
+     * Supplied by the view model so this object does not need to know how
+     * the index is loaded. Given a chapter key, it starts that reading.
+     */
+    var onFinished: ((Context) -> Unit)? = null
+
+    /**
      * Start, or re-label without restarting.
      *
      * Asking for a chapter already inside the file being played only changes
      * what the bar says. Restarting the file would throw away the reader's
      * place for no reason.
      */
-    fun open(context: Context, key: String, r: Reading) {
+    fun open(context: Context, key: String, r: Reading, continued: Boolean = false) {
         val app = context.applicationContext
         val cur = _state.value
         if (cur.reading?.url == r.url && mp != null) {
@@ -62,7 +70,8 @@ object Playback {
             return
         }
         release()
-        _state.value = State(reading = r, chapterKey = key, preparing = true)
+        _state.value = State(reading = r, chapterKey = key, preparing = true,
+                             continued = continued)
         seekOnReady = if (r.alone || r.at == 0) null else r.fraction
 
         val player = MediaPlayer()
@@ -77,8 +86,13 @@ object Playback {
             @Suppress("DEPRECATION")
             player.setWakeMode(app, android.os.PowerManager.PARTIAL_WAKE_LOCK)
             player.setOnPreparedListener { onReady(app, it) }
+            // A reading that stops dead at the end of Genesis 14 and waits
+            // to be asked is not much use to someone listening with the
+            // phone face down. The files run end to end through the whole
+            // canon, so carry on into the next one.
             player.setOnCompletionListener {
                 _state.value = _state.value.copy(playing = false)
+                onFinished?.invoke(app)
             }
             player.setOnErrorListener { _, what, extra ->
                 _state.value = _state.value.copy(
