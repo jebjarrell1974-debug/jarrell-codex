@@ -8,6 +8,7 @@ const S = {
   morph: {}, chron: null, order: null,
   place: null, person: null, event: null, dictIx: null, cmMeta: null, pix: null,
   man: null, dlTiers: {}, dore: null, showPix: true, audio: null,
+  pano: null,
   fs: 19, scheme: 'paper', schemes: null,
   lex: {}, conc: {}, idx: {},
   book: 'Jhn', ch: 3,
@@ -66,15 +67,26 @@ async function idx(kind, term) {
                      catch { S.idx[key] = {}; } }
   return S.idx[key][term] || null;
 }
+/* Always a promise, even when the answer is already in memory.
+   `S.pix || get(...)` returns the bare object on the second call, and
+   `lazy.pix().catch(...)` then throws TypeError: .catch is not a function
+   - which took out the whole place panel from the second place a reader
+   tapped onwards, because the thrown error left the sheet showing
+   whatever had been in it before. It shipped that way and nothing caught
+   it, because every test only ever opened one place. */
+const lazily = (key, file) => () =>
+  S[key] != null ? Promise.resolve(S[key])
+                 : get(file).then(d => (S[key] = d));
 const lazy = {
-  place: () => S.place || get('place.json').then(d => S.place = d),
-  person: () => S.person || get('person.json').then(d => S.person = d),
-  event: () => S.event || get('event.json').then(d => S.event = d),
-  dictIx: () => S.dictIx || get('dict_index.json').then(d => S.dictIx = d),
-  cmMeta: () => S.cmMeta || get('commentary.json').then(d => S.cmMeta = d),
-  pix: () => S.pix || get('pix_manifest.json').then(d => S.pix = d),
-  dore: () => S.dore || get('dore.json').then(d => S.dore = d),
-  audio: () => S.audio || get('audio.json').then(d => S.audio = d)
+  place: lazily('place', 'place.json'),
+  person: lazily('person', 'person.json'),
+  event: lazily('event', 'event.json'),
+  dictIx: lazily('dictIx', 'dict_index.json'),
+  cmMeta: lazily('cmMeta', 'commentary.json'),
+  pix: lazily('pix', 'pix_manifest.json'),
+  dore: lazily('dore', 'dore.json'),
+  audio: lazily('audio', 'audio.json'),
+  pano: lazily('pano', 'pano.json')
 };
 
 /* ------------------------------------------------------------- references */
@@ -405,7 +417,8 @@ async function dictSheet(term) {
 /* ------------------------------------------------- place / person / event */
 async function placeSheet(vi, i) {
   const p = (CH.v[vi].p || [])[i]; if (!p) return;
-  await Promise.all([lazy.place(), lazy.pix().catch(() => {})]);
+  await Promise.all([lazy.place(), lazy.pix().catch(() => {}),
+                     lazy.pano().catch(() => { S.pano = {}; })]);
   const d = (S.place || {})[p[0]] || {};
   const lat = d.lat != null ? d.lat : p[2], lon = d.lon != null ? d.lon : p[3];
   const STAT = {
@@ -466,6 +479,15 @@ async function placeSheet(vi, i) {
       <p class="pa">Street level only exists where somebody has driven a camera
       down that road, which for a good many of these is nowhere. All three open
       in another app and need a connection.</p>`);
+    // Stay here and look around instead, where somebody has left a
+    // photosphere. Loaded only if asked for.
+    const pano = (S.pano || {})[p[0]];
+    if (pano) {
+      o.push(`<button class="opt" data-look="${esc(p[0])}"
+        style="margin-top:10px">◌ Stand here and look around, without
+        leaving this page</button>`);
+      o.push('<div id="panoHost"></div>');
+    }
   } else o.push('<p class="oc">No coordinates — the site is unlocated.</p>');
   if (d.n) {
     o.push(`<p class="lbl" style="margin:18px 0 6px">Named in ${d.n} verse${d.n === 1 ? '' : 's'}</p>`);
@@ -1023,6 +1045,258 @@ async function searchDict(ts, box) {
 
 
 
+
+
+/* ========================================================= looking around */
+/* A photosphere is an equirectangular image: longitude left to right,
+   latitude top to bottom, twice as wide as it is tall. Looking around
+   inside one means putting a camera at the centre of a sphere, which means
+   WebGL - written out here rather than pulled from a content network,
+   because a Bible that has to work with no signal cannot depend on a
+   script from somebody else's server.
+
+   One full-screen triangle pair, one shader that turns each pixel back
+   into a direction and reads the image along it, one texture. The images
+   are 2048x1024 exactly, which is a power of two in both directions, so
+   the horizontal wrap is the hardware's REPEAT and costs nothing. */
+
+const VSRC = `
+attribute vec2 a;
+varying vec2 v;
+void main() { v = a; gl_Position = vec4(a, 0.0, 1.0); }`;
+
+const FSRC = `
+precision highp float;
+varying vec2 v;
+uniform sampler2D tex;
+uniform float yaw, pitch, fov, aspect;
+const float PI = 3.141592653589793;
+void main() {
+  float t = tan(fov * 0.5);
+  vec3 d = normalize(vec3(v.x * t * aspect, v.y * t, -1.0));
+  float cp = cos(pitch), sp = sin(pitch);
+  d = vec3(d.x, d.y * cp - d.z * sp, d.y * sp + d.z * cp);
+  float cy = cos(yaw), sy = sin(yaw);
+  d = vec3(d.x * cy + d.z * sy, d.y, -d.x * sy + d.z * cy);
+  float u = atan(d.x, -d.z) / (2.0 * PI) + 0.5;
+  float w = acos(clamp(d.y, -1.0, 1.0)) / PI;
+  gl_FragColor = texture2D(tex, vec2(u, w));
+}`;
+
+const PV = { gl: null, loc: null, yaw: 0, pitch: 0, fov: 1.2, raf: 0 };
+const FOV_MIN = 0.45, FOV_MAX = 1.9;   // about 26 to 109 degrees across
+
+function panoStart(canvas, img) {
+  const gl = canvas.getContext('webgl', { alpha: false, antialias: false })
+          || canvas.getContext('experimental-webgl', { alpha: false });
+  if (!gl) return false;
+
+  const sh = (type, src) => {
+    const o = gl.createShader(type);
+    gl.shaderSource(o, src); gl.compileShader(o);
+    if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) return null;
+    return o;
+  };
+  const vs = sh(gl.VERTEX_SHADER, VSRC), fs = sh(gl.FRAGMENT_SHADER, FSRC);
+  if (!vs || !fs) return false;
+  const prog = gl.createProgram();
+  gl.attachShader(prog, vs); gl.attachShader(prog, fs); gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return false;
+  gl.useProgram(prog);
+
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER,
+    new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+  const a = gl.getAttribLocation(prog, 'a');
+  gl.enableVertexAttribArray(a);
+  gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 0, 0);
+
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, img);
+  // REPEAT across, so a drag past the seam comes round again; clamped
+  // down, because there is nothing above the zenith to wrap to.
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+  PV.gl = gl;
+  PV.loc = {
+    yaw: gl.getUniformLocation(prog, 'yaw'),
+    pitch: gl.getUniformLocation(prog, 'pitch'),
+    fov: gl.getUniformLocation(prog, 'fov'),
+    aspect: gl.getUniformLocation(prog, 'aspect'),
+  };
+  PV.yaw = 0; PV.pitch = 0; PV.fov = 1.2;
+  panoDraw();
+  return true;
+}
+
+function panoDraw() {
+  const gl = PV.gl;
+  if (!gl) return;
+  const c = gl.canvas;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.round(c.clientWidth * dpr), h = Math.round(c.clientHeight * dpr);
+  if (w && h && (c.width !== w || c.height !== h)) { c.width = w; c.height = h; }
+  gl.viewport(0, 0, c.width, c.height);
+  gl.uniform1f(PV.loc.yaw, PV.yaw);
+  gl.uniform1f(PV.loc.pitch, PV.pitch);
+  gl.uniform1f(PV.loc.fov, PV.fov);
+  gl.uniform1f(PV.loc.aspect, (c.width || 1) / (c.height || 1));
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+/** Looking straight up or down in an equirectangular image smears, so stop short. */
+function panoMove(dYaw, dPitch) {
+  PV.yaw += dYaw;
+  PV.pitch = Math.max(-1.45, Math.min(1.45, PV.pitch + dPitch));
+  if (!PV.raf) PV.raf = requestAnimationFrame(() => { PV.raf = 0; panoDraw(); });
+}
+function panoZoom(f) {
+  PV.fov = Math.max(FOV_MIN, Math.min(FOV_MAX, PV.fov * f));
+  panoMove(0, 0);
+}
+function panoStop() {
+  if (PV.raf) cancelAnimationFrame(PV.raf);
+  PV.raf = 0; PV.gl = null; PV.loc = null;
+}
+
+/**
+ * Dragging is not obvious and not everyone can do it accurately, so the
+ * arrows are the primary control and the drag is the shortcut. Each arrow
+ * is a full tap target and repeats while held.
+ */
+function panoWire(canvas) {
+  let down = false, lx = 0, ly = 0, hold = 0;
+  const scale = () => PV.fov / Math.max(canvas.clientWidth, 1) * 1.6;
+  const start = ev => {
+    const t = ev.touches ? ev.touches[0] : ev;
+    down = true; lx = t.clientX; ly = t.clientY;
+  };
+  const move = ev => {
+    if (!down) return;
+    const t = ev.touches ? ev.touches[0] : ev;
+    panoMove(-(t.clientX - lx) * scale(), (t.clientY - ly) * scale());
+    lx = t.clientX; ly = t.clientY;
+    ev.preventDefault();
+  };
+  const end = () => { down = false; };
+  canvas.addEventListener('mousedown', start);
+  canvas.addEventListener('mousemove', move);
+  canvas.addEventListener('mouseup', end);
+  canvas.addEventListener('mouseleave', end);
+  canvas.addEventListener('touchstart', start, { passive: true });
+  canvas.addEventListener('touchmove', move, { passive: false });
+  canvas.addEventListener('touchend', end);
+  canvas.addEventListener('wheel', ev => {
+    panoZoom(ev.deltaY > 0 ? 1.1 : 0.9); ev.preventDefault();
+  }, { passive: false });
+
+  const STEP = 0.16;
+  const act = {
+    left: () => panoMove(-STEP, 0), right: () => panoMove(STEP, 0),
+    up: () => panoMove(0, STEP), down: () => panoMove(0, -STEP),
+    in: () => panoZoom(0.88), out: () => panoZoom(1.14),
+  };
+  const sheet = canvas.closest('#sheet') || document;
+  sheet.querySelectorAll('[data-pan]').forEach(b => {
+    const go = () => (act[b.dataset.pan] || (() => {}))();
+    const begin = ev => {
+      go();
+      clearInterval(hold);
+      hold = setInterval(go, 140);
+      ev.preventDefault();
+    };
+    const stop = () => clearInterval(hold);
+    b.addEventListener('mousedown', begin);
+    b.addEventListener('touchstart', begin, { passive: false });
+    ['mouseup', 'mouseleave', 'touchend', 'touchcancel']
+      .forEach(e => b.addEventListener(e, stop));
+  });
+  canvas.tabIndex = 0;
+  canvas.addEventListener('keydown', ev => {
+    const k = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up',
+                ArrowDown: 'down', '+': 'in', '-': 'out' }[ev.key];
+    if (k) { act[k](); ev.preventDefault(); }
+  });
+}
+
+/**
+ * The pane, opened from a place. Lazy on purpose: a photosphere is a
+ * quarter of a megabyte and most readers will never open one, so nothing
+ * is fetched until somebody asks to look.
+ */
+async function lookAround(name) {
+  const host = document.getElementById('panoHost');
+  if (!host) return;
+  let p;
+  try { p = (await lazy.pano())[name]; }
+  catch {
+    host.innerHTML = `<p class="pa">The list of photospheres would not load.${
+      navigator.onLine ? '' : ' You are offline, and this one has not been downloaded.'}</p>`;
+    return;
+  }
+  if (!p) {
+    host.innerHTML = `<p class="pa">Nobody has taken a photosphere of
+      ${esc(name)}, or near enough to count.</p>`;
+    return;
+  }
+  host.innerHTML = `
+    <div class="pano"><canvas id="panoC" aria-label="A photosphere of ${esc(name)}.
+      Drag it, or use the arrows below."></canvas>
+      <p class="pano-load">Loading the photosphere…</p></div>
+    <div class="pano-ctl">
+      <button class="pbtn" data-pan="left"  aria-label="Look left">←</button>
+      <button class="pbtn" data-pan="up"    aria-label="Look up">↑</button>
+      <button class="pbtn" data-pan="down"  aria-label="Look down">↓</button>
+      <button class="pbtn" data-pan="right" aria-label="Look right">→</button>
+      <button class="pbtn" data-pan="in"    aria-label="Closer">+</button>
+      <button class="pbtn" data-pan="out"   aria-label="Wider">−</button>
+    </div>
+    <p class="pa" id="panoNote">Drag the picture, or hold an arrow.</p>`;
+
+  const canvas = document.getElementById('panoC');
+  const img = new Image();
+  img.decoding = 'async';
+  img.onload = () => {
+    const box = canvas.parentElement.querySelector('.pano-load');
+    if (box) box.remove();
+    if (panoStart(canvas, img)) {
+      panoWire(canvas);
+    } else {
+      // No WebGL at all. The flat image is still the whole view, just
+      // unrolled, and saying so beats an empty box.
+      canvas.parentElement.innerHTML =
+        `<img src="${esc('data/pano/' + p.file)}" alt="A photosphere of ${esc(name)},
+          shown flat" style="width:100%;height:auto;display:block">`;
+      const note = document.getElementById('panoNote');
+      if (note) note.textContent = 'This phone cannot wrap the picture round ' +
+        'you, so here it is unrolled flat. The left and right edges join up.';
+      const ctl = document.querySelector('.pano-ctl');
+      if (ctl) ctl.remove();
+    }
+    const note = document.getElementById('panoNote');
+    if (note && PV.gl) {
+      note.innerHTML = `Drag the picture, or hold an arrow. ${
+        p.km != null && p.km > 0.2
+          ? `Taken about ${p.km < 1 ? Math.round(p.km * 1000) + ' m'
+             : p.km + ' km'} from the spot itself. `
+          : ''}${esc(p.artist || 'A Mapillary contributor')}${
+        p.taken ? ', ' + esc(String(p.taken).slice(0, 10)) : ''} · ${
+        esc(p.licence || 'CC BY-SA 4.0')}${
+        p.page ? ` · <a href="${esc(p.page)}" target="_blank" rel="noopener">source</a>` : ''}`;
+    }
+  };
+  img.onerror = () => {
+    host.innerHTML = `<p class="pa">The photosphere would not load.${
+      navigator.onLine ? '' : ' You are offline, and this one has not been downloaded.'}</p>`;
+  };
+  img.src = 'data/pano/' + p.file;
+}
 
 /* ============================================================== welcome */
 /* The first thing a person sees when somebody sends them the link.
@@ -1654,7 +1928,7 @@ function route() {
 
 /* ========================================================= event wiring */
 document.addEventListener('click', ev => {
-  const t = ev.target.closest('[data-startreading],[data-listen],[data-aufrom],[data-setpix],[data-go2],[data-fs],[data-setscheme3],[data-settx],[data-setpron],[data-setscheme],[data-setscheme2],[data-tier],[data-dlstart],[data-dlstop],[data-dlclear],[data-cmf],[data-close],[data-v][data-t],[data-k],[data-ref],[data-conc],[data-dict],[data-book],[data-ch],[data-nav],[data-go],[data-tab],[data-expand]');
+  const t = ev.target.closest('[data-look],[data-pan],[data-startreading],[data-listen],[data-aufrom],[data-setpix],[data-go2],[data-fs],[data-setscheme3],[data-settx],[data-setpron],[data-setscheme],[data-setscheme2],[data-tier],[data-dlstart],[data-dlstop],[data-dlclear],[data-cmf],[data-close],[data-v][data-t],[data-k],[data-ref],[data-conc],[data-dict],[data-book],[data-ch],[data-nav],[data-go],[data-tab],[data-expand]');
   if (!t) return;
 
   if (t.dataset.close) return closeSheet();
@@ -1678,6 +1952,7 @@ document.addEventListener('click', ev => {
     markWelcome();
     return go('#/' + S.book + '.' + S.ch);
   }
+  if (t.dataset.look) return void lookAround(t.dataset.look);
   if (t.dataset.listen) return void listen(S.book, S.ch);
   if (t.dataset.aufrom !== undefined) {
     const el = auEl();
