@@ -74,10 +74,17 @@ const lazy = {
 };
 
 /* ------------------------------------------------------------- references */
+// names[code] is [code, full, abbrev...]. Job carries only its code, because
+// the source lists no separate full name for a book already called Job - so
+// take the first entry that exists instead of assuming index 1 is there.
+// Without this every reference in Job renders as "undefined 1".
+function bookName(code) {
+  const nm = S.names[code];
+  return (nm && (nm[1] || nm[0])) || code;
+}
 function refLabel(vk) {
   const p = String(vk).split('.');
-  const nm = S.names[p[0]];
-  return (nm ? nm[1] : p[0]) + ' ' + (p[1] || '') + (p[2] ? ':' + p[2] : '');
+  return bookName(p[0]) + ' ' + (p[1] || '') + (p[2] ? ':' + p[2] : '');
 }
 function parseRef(text) {
   const m = /^\s*((?:[1-3]|i{1,3}|first|second|third)?\s*[a-z. ]+?)\s*(\d+)?(?:\s*[:.]\s*(\d+))?\s*$/i
@@ -863,8 +870,8 @@ async function searchDict(ts, box) {
 
 /* ============================================================= chronology */
 function spanLabel(s) {
-  const nm = S.names[s[0]] ? S.names[s[0]][1] : s[0];
-  return nm + ' ' + s[1] + ':' + (s[2] === s[3] ? s[2] : s[2] + '–' + s[3]);
+  return bookName(s[0]) + ' ' + s[1] + ':' +
+    (s[2] === s[3] ? s[2] : s[2] + '–' + s[3]);
 }
 async function chronoView() {
   await Promise.all([lazy.event(), S.order || get('chrono_order.json').then(d => S.order = d)]);
@@ -1021,7 +1028,7 @@ function booksSheet() {
     o.push(`<p class="lbl" style="margin:14px 0 8px">${t === 'OT' ? 'Old Testament' : 'New Testament'}</p>`);
     o.push('<div class="blist">');
     S.books.filter(b => b[2] === t).forEach(b => o.push(
-      `<button data-book="${esc(b[0])}">${esc(S.names[b[0]] ? S.names[b[0]][1] : b[0])}
+      `<button data-book="${esc(b[0])}">${esc(bookName(b[0]))}
        <span class="ot">${b[3]}</span></button>`));
     o.push('</div>');
   });
@@ -1029,7 +1036,7 @@ function booksSheet() {
 }
 function chaptersSheet(book) {
   const meta = S.bookIx[book];
-  const o = [`<p class="lbl">${esc(S.names[book] ? S.names[book][1] : book)} — ${meta.chapters} chapters</p>`,
+  const o = [`<p class="lbl">${esc(bookName(book))} — ${meta.chapters} chapters</p>`,
              '<div class="grid">'];
   for (let i = 1; i <= meta.chapters; i++)
     o.push(`<button data-ch="${i}" data-cbook="${esc(book)}">${i}</button>`);
