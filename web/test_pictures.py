@@ -63,6 +63,26 @@ async def main():
                     return await pg.inner_text('#sheet')
             return None
 
+        # ---- the second place a reader taps ----------------------------
+        # This is the one that was broken on the live site. lazy.pix()
+        # returned the cached object rather than a promise on every call
+        # after the first, so .catch threw, placeSheet threw with it, and
+        # the panel kept whatever had been in it before - the previous
+        # place's photograph, under the new place's name. Every test only
+        # ever opened one place, so nothing said a word.
+        print('\nopening one place after another')
+        first = await open_place('Luk.2', 'Nazareth')
+        chk('the first place opens', first is not None)
+        second = await open_place('Act.9', 'Damascus')
+        chk('and so does the second', second is not None)
+        if second:
+            chk('the second shows its own name, not the first one\'s',
+                'Damascus' in second and 'Nazareth' not in second,
+                second[:160])
+        third = await open_place('Mat.2', 'Jerusalem')
+        chk('and a third', third is not None and 'Jerusalem' in (third or ''),
+            (third or '')[:120])
+
         print('\na place with a photograph')
         txt = await open_place('Luk.2', 'Nazareth')
         chk('found Nazareth', txt is not None)

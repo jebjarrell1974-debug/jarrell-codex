@@ -256,3 +256,19 @@ body.playing{padding-bottom:calc(248px + env(safe-area-inset-bottom,0px))}
   border-radius:12px;background:var(--accent);color:var(--on-accent);
   font-size:var(--t5);font-weight:600}
 .start:active{background:var(--accent-soft);color:var(--accent)}
+
+/* ---- standing in a place --------------------------------------------
+   The arrows are the control and the drag is the shortcut, not the other
+   way round: dragging is not obvious, and not everybody can do it
+   accurately. Each arrow is a full tap target and repeats while held. */
+.pano{position:relative;width:100%;aspect-ratio:4/3;border-radius:10px;
+  overflow:hidden;background:var(--line-soft);margin:10px 0 0}
+.pano canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+.pano canvas:active{cursor:grabbing}
+.pano-load{position:absolute;inset:0;display:flex;align-items:center;
+  justify-content:center;margin:0;font-size:var(--t1);color:var(--ink-soft)}
+.pano-ctl{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin:8px 0 4px}
+.pbtn{min-height:52px;border:1px solid var(--accent);border-radius:9px;
+  color:var(--accent);background:var(--surface);font-size:var(--t4);
+  font-weight:600;line-height:1}
+.pbtn:active{background:var(--accent);color:var(--on-accent)}
