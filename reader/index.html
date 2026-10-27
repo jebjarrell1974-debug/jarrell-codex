@@ -1,0 +1,262 @@
+<title>Codex Reader</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;0,600;1,400&family=Noto+Serif+Hebrew:wght@400;500&family=Noto+Serif:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a reading column with a study panel that docks right on desktop
+   and slides up from the bottom on a phone — the shape the Android app takes. */
+:root{
+  --ink:#1c1f26; --ink-soft:#565d6b; --ink-faint:#878ea0;
+  --on-accent:#ffffff;
+  --paper:#f7f6f3; --surface:#ffffff; --line:#e0ddd6; --line-soft:#edeae4;
+  --accent:#2f4a7d; --accent-soft:#eaeef6;
+  --good:#2f6b4f; --warn:#8a6312; --crit:#8b3a3a;
+  --ui:'Spectral',Georgia,'Times New Roman',serif;
+  --heb:'Noto Serif Hebrew','Spectral',serif;
+  --grk:'Noto Serif','Spectral',Georgia,serif;
+  --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --ink:#e6e4df; --ink-soft:#a7adba; --ink-faint:#767d8c;
+  --paper:#13151a; --surface:#1a1d23; --line:#2d313a; --line-soft:#23262d;
+  --accent:#8fb0e8; --accent-soft:#1e2738;
+  --good:#6fbb90; --warn:#d7a848; --crit:#e08585;
+  --on-accent:#11131a;
+  color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --ink:#e6e4df; --ink-soft:#a7adba; --ink-faint:#767d8c;
+  --paper:#13151a; --surface:#1a1d23; --line:#2d313a; --line-soft:#23262d;
+  --accent:#8fb0e8; --accent-soft:#1e2738;
+  --good:#6fbb90; --warn:#d7a848; --crit:#e08585;
+  --on-accent:#11131a;
+  color-scheme:dark;}
+
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font-family:var(--ui);line-height:1.55;margin:0}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--paper)}
+
+.wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0;max-width:1180px;margin:0 auto}
+
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:9;background:var(--paper);border-bottom:1px solid var(--line)}
+.hdr{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px 18px;padding-block:14px 12px}
+h1{font-size:1.12rem;font-weight:600;margin:0;letter-spacing:.01em}
+h1 em{font-style:italic;color:var(--ink-soft);font-weight:400}
+.tabs{display:flex;gap:4px;margin-inline-start:auto;flex-wrap:wrap}
+.tab{font:inherit;font-size:.85rem;background:none;border:1px solid transparent;color:var(--ink-soft);
+  padding:5px 11px;border-radius:999px;cursor:pointer}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected="true"]{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
+.tab:focus-visible,button:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+main{display:grid;grid-template-columns:minmax(0,1fr) 384px;gap:30px;align-items:start;padding-block:22px 48px}
+@media (max-width:900px){main{grid-template-columns:minmax(0,1fr);gap:0}}
+
+.hint{font-size:.82rem;color:var(--ink-faint);margin:0 0 16px;font-style:italic}
+
+/* ---- reading column ---- */
+.verse{display:grid;grid-template-columns:2.6rem minmax(0,1fr);gap:0 12px;padding-block:11px;
+  border-bottom:1px solid var(--line-soft)}
+.vn{font-family:var(--mono);font-size:.74rem;color:var(--ink-faint);padding-top:.5rem;
+  font-variant-numeric:tabular-nums}
+.orig{display:flex;flex-wrap:wrap;gap:3px 7px;margin-bottom:5px}
+.orig[dir="rtl"]{justify-content:flex-start}
+.w{font:inherit;background:none;border:0;border-bottom:1px solid transparent;cursor:pointer;
+  padding:2px 3px;border-radius:3px;color:var(--ink);line-height:1.75}
+.w.heb{font-family:var(--heb);font-size:1.3rem}
+.w.grk{font-family:var(--grk);font-size:1.12rem}
+.w:hover{background:var(--accent-soft);border-bottom-color:var(--accent)}
+.w[aria-pressed="true"]{background:var(--accent);color:var(--on-accent);border-bottom-color:var(--accent)}
+.eng{font-size:.93rem;color:var(--ink-soft)}
+.eng b{font-weight:600;color:var(--ink)}
+.ctx{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+.chip{font-size:.71rem;font-family:var(--mono);padding:2px 8px;border-radius:999px;
+  border:1px solid var(--line);color:var(--ink-soft);background:var(--surface)}
+.chip.place{border-color:var(--accent);color:var(--accent)}
+.chip.person{border-color:var(--good);color:var(--good)}
+.chip.event{border-color:var(--warn);color:var(--warn)}
+
+/* ---- study panel ---- */
+.panel{position:sticky;top:calc(env(safe-area-inset-top,0px) + 72px);background:var(--surface);
+  border:1px solid var(--line);border-radius:10px;padding:18px;min-width:0}
+@media (max-width:900px){
+  .panel{position:fixed;inset:auto 0 0 0;top:auto;max-height:66vh;overflow-y:auto;z-index:20;
+    border-radius:14px 14px 0 0;border-bottom:0;
+    box-shadow:0 -8px 32px rgba(0,0,0,.22);
+    padding-left:max(18px,env(safe-area-inset-left,0px));
+    padding-right:max(18px,env(safe-area-inset-right,0px));
+    padding-bottom:calc(18px + env(safe-area-inset-bottom,0px))}
+  .panel[hidden]{display:none!important}
+  .closebtn{display:block}
+}
+.closebtn{display:none;position:absolute;top:12px;right:14px;background:none;border:0;
+  font:inherit;font-size:1.3rem;line-height:1;color:var(--ink-faint);cursor:pointer}
+.ptitle{font-size:.69rem;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-faint);
+  margin:0 0 12px;font-family:var(--mono)}
+.headword{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:3px}
+.headword .big{font-size:1.65rem}
+.headword .big.heb{font-family:var(--heb)}
+.headword .big.grk{font-family:var(--grk)}
+.translit{color:var(--ink-soft);font-style:italic;font-size:.95rem}
+.morph{border-top:1px solid var(--line-soft);padding-top:13px;margin-top:13px}
+.morph:first-of-type{border-top:0;padding-top:0;margin-top:0}
+.sn{font-family:var(--mono);font-size:.76rem;color:var(--accent);background:var(--accent-soft);
+  padding:2px 7px;border-radius:4px}
+.parse{font-size:.83rem;color:var(--ink-soft);margin:7px 0 0}
+.gloss{font-size:1rem;margin:6px 0 0}
+.def{font-size:.85rem;color:var(--ink-soft);margin:7px 0 0;line-height:1.5}
+.occ{font-size:.78rem;color:var(--ink-faint);margin:8px 0 0;font-family:var(--mono);
+  font-variant-numeric:tabular-nums}
+.empty{color:var(--ink-faint);font-size:.88rem;font-style:italic;margin:0}
+
+/* ---- chronology ---- */
+.chron{margin-top:20px;border-top:1px solid var(--line);padding-top:16px}
+.row{display:flex;justify-content:space-between;gap:12px;align-items:baseline;
+  padding:5px 0;border-bottom:1px solid var(--line-soft);font-size:.85rem}
+.row:last-child{border-bottom:0}
+.row .nm{color:var(--ink-soft);min-width:0}
+.row .yr{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.row .yr.none{color:var(--ink-faint);font-style:italic;font-family:var(--ui);font-size:.8rem}
+.row.sel .nm,.row.sel .yr{color:var(--accent);font-weight:500}
+select{font:inherit;font-size:.84rem;background:var(--surface);color:var(--ink);
+  border:1px solid var(--line);border-radius:6px;padding:5px 8px;max-width:100%}
+.note{font-size:.8rem;color:var(--ink-soft);line-height:1.5;margin:10px 0 0;
+  border-left:2px solid var(--line);padding-left:11px;white-space:pre-wrap}
+footer{border-top:1px solid var(--line);margin-top:10px}
+.foot{padding-block:18px 30px;font-size:.78rem;color:var(--ink-faint);line-height:1.6}
+.foot a{color:var(--accent)}
+@media (prefers-reduced-motion:no-preference){.panel{transition:none}}
+</style>
+
+<header><div class="wrap hdr">
+  <h1>Codex Reader <em>— reference implementation</em></h1>
+  <div class="tabs" id="tabs" role="tablist"></div>
+</div></header>
+
+<div class="wrap"><main>
+  <section>
+    <p class="hint" id="hint">Tap any Hebrew or Greek word to open its parsing, lexicon entry and occurrence count.</p>
+    <div id="text"></div>
+  </section>
+  <aside class="panel" id="panel">
+    <button class="closebtn" id="close" aria-label="Close">&times;</button>
+    <div id="pbody"></div>
+  </aside>
+</main></div>
+
+<footer><div class="wrap foot">
+  Real data from the Jarrell Codex build — STEPBible (Tyndale House, Cambridge) and Clear Bible under CC BY 4.0,
+  place data from OpenBible.info, people and events from Theographic, Easton's 1897 in the public domain.
+  Three chapters shown of 1,189; the full database holds 447,744 words and 682,818 morphemes.
+</div></footer>
+
+<script>
+const $ = (s,r=document)=>r.querySelector(s);
+const el = (t,c,x)=>{const n=document.createElement(t); if(c)n.className=c; if(x!=null)n.textContent=x; return n;};
+const yr = v => v==null ? null : (v<0 ? Math.abs(v)+" BC" : "AD "+v);
+let DATA=null, chapIdx=0, scheme="jones", selected=null;
+
+fetch("demo.json").then(r=>r.json()).then(d=>{DATA=d; boot();})
+  .catch(()=>{ $("#text").append(el("p","empty","Could not load the demo data.")); });
+
+function boot(){
+  const tabs=$("#tabs");
+  DATA.chapters.forEach((c,i)=>{
+    const b=el("button","tab",c.label);
+    b.type="button"; b.role="tab"; b.setAttribute("aria-selected", i===0?"true":"false");
+    b.onclick=()=>{chapIdx=i; selected=null; render(); tabs.querySelectorAll(".tab")
+      .forEach((t,j)=>t.setAttribute("aria-selected", j===i?"true":"false"));};
+    tabs.append(b);
+  });
+  $("#close").onclick=()=>{ selected=null; render(); };
+  render();
+}
+
+function render(){
+  const ch=DATA.chapters[chapIdx], host=$("#text"); host.textContent="";
+  const rtl = ch.verses[0]?.tokens[0]?.language==="H";
+  ch.verses.forEach(v=>{
+    const row=el("div","verse");
+    row.append(el("div","vn", v.verse_key.split(".")[2]));
+    const body=el("div");
+    const line=el("div","orig"); if(rtl) line.dir="rtl";
+    v.tokens.forEach(t=>{
+      const b=el("button", "w "+(t.language==="H"?"heb":"grk"), t.surface);
+      b.type="button";
+      b.setAttribute("aria-pressed", selected && selected.token_id===t.token_id ? "true":"false");
+      b.onclick=()=>{ selected={...t, verse:v}; render(); };
+      line.append(b);
+    });
+    body.append(line);
+    const kjv=(v.translations||[]).find(x=>x.code==="KJV");
+    if(kjv) body.append(el("div","eng", kjv.text));
+    const chips=el("div","ctx");
+    (v.places||[]).forEach(p=>chips.append(el("span","chip place", p.name + (p.status==="unknown"?" · location unknown":p.status==="region"?" · region":""))));
+    (v.people||[]).forEach(p=>chips.append(el("span","chip person", p.name)));
+    (v.events||[]).forEach(e=>chips.append(el("span","chip event", e.title)));
+    if(chips.children.length) body.append(chips);
+    row.append(body); host.append(row);
+  });
+  paintPanel();
+}
+
+function paintPanel(){
+  const p=$("#pbody"), panel=$("#panel"); p.textContent="";
+  const narrow = window.matchMedia("(max-width:900px)").matches;
+  if(!selected){
+    panel.hidden = narrow;
+    p.append(el("p","ptitle","Word study"));
+    p.append(el("p","empty","Choose a word in the text to see how it parses and what it means."));
+    chronology(p, null);
+    return;
+  }
+  panel.hidden=false;
+  p.append(el("p","ptitle", selected.verse.verse_key.replace(/\./g," ")+" · word "+selected.position));
+  const hw=el("div","headword");
+  hw.append(el("span","big "+(selected.language==="H"?"heb":"grk"), selected.surface));
+  if(selected.translit) hw.append(el("span","translit", selected.translit));
+  p.append(hw);
+  if(selected.gloss) p.append(el("div","gloss", selected.gloss));
+
+  (selected.morphemes||[]).forEach(m=>{
+    const box=el("div","morph");
+    const top=el("div","headword");
+    if(m.surface) top.append(el("span","big "+(selected.language==="H"?"heb":"grk"), m.surface));
+    if(m.strongs) top.append(el("span","sn", m.strongs));
+    box.append(top);
+    if(m.lemma) box.append(el("div","gloss", m.lemma + (m.gloss? " — "+m.gloss : "")));
+    if(m.parsing) box.append(el("p","parse", m.parsing));
+    if(m.definition) box.append(el("p","def", m.definition));
+    if(m.count) box.append(el("p","occ", m.count.toLocaleString()+" occurrence"+(m.count===1?"":"s")+" of "+m.strongs_simple));
+    p.append(box);
+  });
+  chronology(p, selected.verse);
+}
+
+function chronology(p, verse){
+  const ev=(verse && verse.events && verse.events[0]) || null;
+  const box=el("div","chron");
+  const head=el("p","ptitle", ev ? "Dating: "+ev.title : "Chronology scheme");
+  box.append(head);
+
+  const sel=el("select"); sel.id="scheme";
+  DATA.schemes.forEach(s=>{
+    const o=el("option",null, s.name + (s.coverage==="none" ? " (no dates loaded)" : ""));
+    o.value=s.scheme_id; if(s.scheme_id===scheme) o.selected=true; sel.append(o);
+  });
+  sel.onchange=e=>{ scheme=e.target.value; paintPanel(); };
+  box.append(sel);
+
+  const meta=DATA.schemes.find(s=>s.scheme_id===scheme);
+  if(meta) box.append(el("p","note", meta.summary + "\n\nSource: " + meta.source));
+
+  if(ev){
+    ev.dates.forEach(d=>{
+      const r=el("div","row"+(d.scheme_id===scheme?" sel":""));
+      r.append(el("span","nm", d.name));
+      const v=yr(d.start_year);
+      r.append(el("span", v?"yr":"yr none", v || "no date in this scheme"));
+      box.append(r);
+    });
+  }
+  p.append(box);
+}
+</script>

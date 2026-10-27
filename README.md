@@ -91,6 +91,23 @@ marked **disputed**. A place genuinely lost — the land of Nod, east of Eden �
 comes back **unknown**, with no coordinates at all rather than a pin someone
 invented. Regions like Egypt are marked as regions, not as mysteries.
 
+## The app
+
+`android/` holds a Kotlin + Compose client that reads the prebuilt database
+straight out of the APK. The database travels gzipped at 61 MB and expands to
+about 226 MB on first launch — comfortably inside Google Play's 500 MB base
+module limit, so there is no asset pack and no first-run download. Install it
+and it works: on a plane, in a basement, on a handed-over phone with no SIM.
+
+**That project has never been compiled.** It was written without an Android
+SDK, so the Kotlin and Gradle config are unverified and the first build will
+need fixing. The SQL inside it is not a guess — every query was benchmarked
+against the real database first (`scripts/15_queries.py`; a chapter opens in
+under 2 ms, the worst case is 24.8 ms across all 682,818 morphemes).
+
+`reader/` is a working reference reader over a real slice of the data, built
+and tested first so the Compose UI is a port of something known-good.
+
 ## Licence
 
 Code is **MPL-2.0**. The data carries its own licences and its own obligations —

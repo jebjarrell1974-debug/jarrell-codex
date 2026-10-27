@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Jarrell Codex</string>
+    <string name="preparing">Preparing the text…</string>
+    <string name="preparing_detail">Unpacking the Hebrew and Greek. This happens once.</string>
+    <string name="no_date_in_scheme">no date in this scheme</string>
+</resources>

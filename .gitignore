@@ -6,3 +6,6 @@ build/*.db
 build/*.db-journal
 *.pyc
 __pycache__/
+
+# Generated demo slice for the reference reader
+reader/demo.json

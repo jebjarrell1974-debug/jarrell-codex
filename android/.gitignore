@@ -1,0 +1,10 @@
+# The database asset is a build artifact, not source. Regenerate it with
+# scripts/build_all.sh and gzip the result into app/src/main/assets/.
+app/src/main/assets/*.gz
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+*.jks
+*.keystore

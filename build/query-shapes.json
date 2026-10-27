@@ -1,0 +1,93 @@
+{
+ "token": {
+  "token_id": "Gen.1.1#001@L",
+  "verse_key": "Gen.1.1",
+  "position": 1,
+  "surface": "בְּ/רֵאשִׁ֖ית",
+  "translit": "be./re.Shit",
+  "gloss": "in/ beginning",
+  "language": "H",
+  "text_type": "L"
+ },
+ "morphemes": [
+  {
+   "seq": 0,
+   "surface": "בְּ",
+   "strongs": "H9003",
+   "morph_code": "HR",
+   "language": "H",
+   "parsing": "Function=Preposition",
+   "lemma": "/ב",
+   "lemma_translit": "b",
+   "gloss": "in/on/with",
+   "definition": "Prefix beth: in, among, with,"
+  },
+  {
+   "seq": 1,
+   "surface": "רֵאשִׁ֖ית",
+   "strongs": "H7225G",
+   "morph_code": "HNcfsa",
+   "language": "H",
+   "parsing": "Function=Noun ; Form=Common ; Gender=Feminine; Number=Singular; State=Absolute",
+   "lemma": "רֵאשִׁית",
+   "lemma_translit": "re.shit",
+   "gloss": "first: beginning",
+   "definition": ": beginning | 1) first, beginning, best, chief | 1a) beginning | 1b) first | 1c) chief | 1d) choice part | Also means: re.shit (רֵאשִׁית \": best\" H7225H)"
+  }
+ ],
+ "translations": [
+  {
+   "code": "ASV",
+   "text": "In the beginning God created the heavens and the earth."
+  },
+  {
+   "code": "Darby",
+   "text": "In the beginningGod created the heavens and the earth."
+  },
+  {
+   "code": "KJV",
+   "text": "In the beginning God created the heaven and the earth."
+  },
+  {
+   "code": "YLT",
+   "text": "In the beginning of God's preparing the heavens and the earth--"
+  }
+ ],
+ "places": [
+  {
+   "place_id": "a815d89",
+   "name": "Areopagus",
+   "status": "identified",
+   "latitude": 37.972222,
+   "longitude": 23.723611,
+   "modern_name": "Areopagus",
+   "wikidata": "Q202487"
+  },
+  {
+   "place_id": "a1fe6e7",
+   "name": "Athens",
+   "status": "identified",
+   "latitude": 37.971851,
+   "longitude": 23.726738,
+   "modern_name": "Athens",
+   "wikidata": "Q1524"
+  }
+ ],
+ "people": [
+  {
+   "person_id": 2479,
+   "name": "Paul",
+   "gender": "Male",
+   "birth_year": null,
+   "death_year": null
+  }
+ ],
+ "schemes": [
+  "jones",
+  "ussher",
+  "septuagint",
+  "samaritan",
+  "thiele",
+  "critical"
+ ]
+}
