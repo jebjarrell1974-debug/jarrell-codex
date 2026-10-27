@@ -1,0 +1,19 @@
+{
+  "verse": {
+    "terms": 12602,
+    "shards": 234,
+    "mb": 3.7,
+    "capped": 10
+  },
+  "gloss": {
+    "terms": 12559,
+    "shards": 242,
+    "mb": 0.9
+  },
+  "note": {
+    "terms": 19460,
+    "shards": 252,
+    "mb": 10.7,
+    "capped": 120
+  }
+}
