@@ -147,3 +147,4 @@ input[type=search]{width:100%;background:var(--surface);border:1px solid var(--l
   border-top:1px solid var(--line);margin-top:24px}
 .foot a{color:var(--accent)}
 .para{height:0;border-top:1px solid var(--line);margin:18px 18% 4px;opacity:.55}
+.chip.cm{border-color:var(--good);color:var(--good)}

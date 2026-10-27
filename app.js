@@ -6,7 +6,7 @@ const D = 'data/';
 const S = {
   books: [], names: {}, bookIx: {},
   morph: {}, chron: null, order: null,
-  place: null, person: null, event: null, dictIx: null,
+  place: null, person: null, event: null, dictIx: null, cmMeta: null,
   lex: {}, conc: {}, idx: {},
   book: 'Jhn', ch: 3,
   tx: 'KJV', scheme: 'jones', showOrig: true, pron: 'erasmian'
@@ -40,16 +40,22 @@ const bucket = s => {
 const shard2 = t => { const k = (t || '').replace(/[^a-z]/g, '').slice(0, 2);
                       return k ? (k + 'zz').slice(0, 2) : 'xx'; };
 
+// null = no such entry; OFFLINE = we could not reach the file at all.
+const OFFLINE = Symbol('offline');
 async function lex(strongs) {
   const b = bucket(strongs);
-  if (!S.lex[b]) { try { S.lex[b] = await get(`lex/${b}.json`); }
-                   catch { S.lex[b] = {}; } }
+  if (!S.lex[b]) {
+    try { S.lex[b] = await get(`lex/${b}.json`); }
+    catch { return OFFLINE; }
+  }
   return S.lex[b][strongs] || null;
 }
 async function conc(strongs) {
   const b = bucket(strongs);
-  if (!S.conc[b]) { try { S.conc[b] = await get(`conc/${b}.json`); }
-                    catch { S.conc[b] = {}; } }
+  if (!S.conc[b]) {
+    try { S.conc[b] = await get(`conc/${b}.json`); }
+    catch { return OFFLINE; }
+  }
   return S.conc[b][strongs] || null;
 }
 async function idx(kind, term) {
@@ -62,7 +68,8 @@ const lazy = {
   place: () => S.place || get('place.json').then(d => S.place = d),
   person: () => S.person || get('person.json').then(d => S.person = d),
   event: () => S.event || get('event.json').then(d => S.event = d),
-  dictIx: () => S.dictIx || get('dict_index.json').then(d => S.dictIx = d)
+  dictIx: () => S.dictIx || get('dict_index.json').then(d => S.dictIx = d),
+  cmMeta: () => S.cmMeta || get('commentary.json').then(d => S.cmMeta = d)
 };
 
 /* ------------------------------------------------------------- references */
@@ -182,10 +189,16 @@ function renderChapter(scrollToVerse) {
       `<button class="chip note" data-k="note" data-v="${vi}">✎ ${v.nt.length} note${v.nt.length > 1 ? 's' : ''}</button>`);
     if ((v.xr || []).length) ch.push(
       `<button class="chip xr" data-k="xref" data-v="${vi}">⇄ ${v.xr.length} cross-ref${v.xr.length > 1 ? 's' : ''}</button>`);
+    if (v.cm) ch.push(
+      `<button class="chip cm" data-k="cm" data-v="${vi}">§ ${v.cm} commentar${v.cm > 1 ? 'ies' : 'y'}</button>`);
     if (ch.length) out.push(`<div class="chips">${ch.join('')}</div>`);
     out.push('</div>');
     if (para) out.push('<div class="para" aria-hidden="true"></div>');
   });
+
+  if (d.cmc) out.push(`<div style="margin:20px 0 0"><button class="chip cm"
+    data-k="cmch" style="min-height:44px;padding:8px 14px">\u00a7 Commentary on
+    ${esc(refLabel(d.b + '.' + d.c)).replace(/ \d+$/, '')} and this chapter</button></div>`);
 
   const meta = S.bookIx[d.b];
   out.push(`<div style="display:flex;gap:10px;margin:22px 0 0">
@@ -206,8 +219,9 @@ function footer() {
     Lexicons: Brown-Driver-Briggs, Thayer, Abbott-Smith, Liddell-Scott-Jones.
     Places: OpenBible.info. People, events and dictionary: Theographic Bible
     Metadata (Easton's). Translation notes: unfoldingWord (CC BY-SA 4.0).
+    Commentary: Matthew Henry, the Geneva notes, Calvin, Poole, Trapp and Spurgeon.
     Cross-references: Treasury of Scripture Knowledge via OpenBible.
-    Translations are public domain.
+    Translations and commentaries are public domain.
     <button data-go="about" style="color:var(--accent);padding:8px 0;display:block">
       Full sources, licences, and how to read the chronologies →</button>
   </div>`;
@@ -267,6 +281,14 @@ async function wordSheet(vi, ti) {
     if (!el) continue;
     const [e, cc] = await Promise.all([lex(m[0]).then(x => x || lex(simple)), conc(simple)]);
     const bits = [];
+    if (e === OFFLINE) {
+      bits.push(`<p class="pa">The dictionary entry for this word has not been
+        downloaded yet, and there is no connection to fetch it. The parsing
+        above is already on your phone. Open this word once with a signal and
+        it will be here from then on.</p>`);
+      el.innerHTML = bits.join('');
+      continue;
+    }
     if (e) {
       bits.push(`<p class="de"><b>${esc(e[2] || '')}</b></p>`);
       if (e[0]) bits.push(`<p class="pa">${esc(e[0])} &middot; <i>${esc(e[1] || '')}</i></p>`);
@@ -278,7 +300,7 @@ async function wordSheet(vi, ti) {
           data-full="${esc(full)}">Read the whole entry →</button>`);
       }
     } else bits.push('<p class="pa">No lexicon entry under this number.</p>');
-    if (cc) bits.push(`<button class="more" data-conc="${esc(simple)}">
+    if (cc && cc !== OFFLINE) bits.push(`<button class="more" data-conc="${esc(simple)}">
       Concordance: ${cc[0].toLocaleString()} verse${cc[0] === 1 ? '' : 's'} →</button>`);
     bits.push(`<button class="more" data-dict="${esc((e && e[2]) || t[3] || '')}">
       Look up in the Bible dictionary →</button>`);
@@ -289,6 +311,9 @@ async function wordSheet(vi, ti) {
 /* -------------------------------------------------------- concordance */
 async function concSheet(strongs) {
   const [cc, e] = await Promise.all([conc(strongs), lex(strongs)]);
+  if (cc === OFFLINE) return sheet(`<p class="lbl">Concordance</p>
+    <p class="de">This part of the concordance has not been downloaded yet, and
+    there is no connection to fetch it. Try again with a signal.</p>`);
   if (!cc) return sheet('<p class="load">Nothing indexed under that number.</p>');
   const shown = cc[1].length;
   const o = [`<p class="lbl">Concordance &middot; ${esc(strongs)}</p>`];
@@ -488,6 +513,76 @@ function xrefSheet(vi) {
   sheet(o.join(''));
 }
 
+/* ============================================================= commentary */
+let CMF = 'all';                       // source filter inside the sheet
+
+async function commentary(book, ch) {
+  return get(`cm/${book}.${ch}.json`);
+}
+function cmRender(units, title, note) {
+  const meta = (S.cmMeta || {}).sources || {};
+  const order = (S.cmMeta || {}).order || [];
+  const present = order.filter(sid => units.some(u => u[0] === sid));
+  const shown = CMF === 'all' ? units : units.filter(u => u[0] === CMF);
+  const o = [`<p class="lbl">${esc(title)}</p>`];
+  if (note) o.push(`<p class="pa" style="margin:0 0 12px">${esc(note)}</p>`);
+  if (present.length > 1) {
+    o.push(`<div class="tabs"><button data-cmf="all" class="${CMF === 'all' ? 'on' : ''}">All ${units.length}</button>`);
+    present.forEach(sid => {
+      const n = units.filter(u => u[0] === sid).length;
+      o.push(`<button data-cmf="${esc(sid)}" class="${CMF === sid ? 'on' : ''}">${
+        esc((meta[sid] || [sid])[0])} ${n}</button>`);
+    });
+    o.push('</div>');
+  }
+  if (!shown.length) o.push('<p class="pa">Nothing from that commentator here.</p>');
+  shown.forEach(u => {
+    const [sid, kind, utitle, v1, v2, paras] = u;
+    const m = meta[sid] || [sid, ''];
+    o.push('<div class="mo">');
+    o.push(`<p style="font-weight:600;margin:0 0 2px">${esc(m[0])}</p>`);
+    o.push(`<p class="oc" style="margin:0 0 8px">${esc(m[1])}${
+      kind === 'book' ? ' \u00b7 preface to the book'
+      : v1 == null ? ' \u00b7 on the whole chapter'
+      : ` \u00b7 on ${v1 === v2 ? 'verse ' + v1 : 'verses ' + v1 + '\u2013' + v2}`}</p>`);
+    if (utitle) o.push(`<p class="de" style="font-style:italic;margin:0 0 8px">${esc(utitle)}</p>`);
+    paras.forEach(t => o.push(`<p class="de" style="margin:0 0 10px">${esc(t)}</p>`));
+    o.push('</div>');
+  });
+  o.push(`<p class="oc" style="margin-top:14px">All six are in the public domain.
+    Nothing under copyright was included.</p>`);
+  return o.join('');
+}
+
+async function cmSheet(vi) {
+  await lazy.cmMeta();
+  const v = CH.v[vi];
+  sheet('<p class="load">Loading the commentators\u2026</p>');
+  let d;
+  try { d = await commentary(CH.b, CH.c); }
+  catch { return sheet('<p class="load">Commentary would not load.</p>'); }
+  const units = d.u.filter(u => u[3] != null && v.n >= u[3] && v.n <= (u[4] || u[3]));
+  CMV = vi;
+  sheet(cmRender(units,
+    'Commentary on ' + refLabel(CH.b + '.' + CH.c + '.' + v.n),
+    'Six commentators, written between 1599 and 1885. They disagree with each ' +
+    'other, and with you. That is what they are for.'));
+}
+async function cmChapterSheet() {
+  await lazy.cmMeta();
+  sheet('<p class="load">Loading the commentators\u2026</p>');
+  let d;
+  try { d = await commentary(CH.b, CH.c); }
+  catch { return sheet('<p class="load">Commentary would not load.</p>'); }
+  const units = d.u.filter(u => u[3] == null);
+  CMV = null;
+  sheet(cmRender(units,
+    'On ' + refLabel(CH.b + '.' + CH.c) + ' as a whole',
+    'Prefaces to the book and overviews of the chapter, before the ' +
+    'verse-by-verse notes.'));
+}
+let CMV = null;
+
 /* ============================================================== searching */
 let SQ = '', STAB = 'verse';
 const tokens = q => (q || '').toLowerCase().split(/[^a-z']+/)
@@ -596,7 +691,8 @@ async function searchWords(ts, box) {
   const o = [`<p class="oc">Original-language words translated with
     “${esc(ts.join(' '))}”, commonest first</p><div style="margin-top:10px">`];
   const top = hits.slice(0, 40);
-  const ents = await Promise.all(top.map(h => lex(h[0])));
+  const ents = (await Promise.all(top.map(h => lex(h[0]))))
+    .map(x => x === OFFLINE ? null : x);
   top.forEach(([s, n], i) => {
     const e = ents[i];
     o.push(`<button class="hit" data-conc="${esc(s)}">
@@ -736,6 +832,8 @@ function aboutView() {
    ['Theographic Bible Metadata', 'People, events, and Easton’s Bible Dictionary. CC BY 4.0.'],
    ['unfoldingWord', 'Translation Notes — verse-by-verse notes on wording, idiom and background. CC BY-SA 4.0.'],
    ['MACULA', 'Syntactic and semantic annotation of the original text. CC BY 4.0.'],
+   ['Matthew Henry, the Geneva notes, Calvin, Poole, Trapp, Spurgeon',
+    'Six commentaries written between 1599 and 1885, keyed to the verse. All public domain. A seventh source of patristic quotations was left out: its English translations are described as “19th-century and later”, and anything whose copyright cannot be settled does not belong in a Bible meant to be copied and handed out.'],
    ['King James, American Standard, Young’s Literal, Darby', 'English translations. All public domain.']
   ].forEach(([t, b]) => o.push(
     `<div class="mo"><p style="font-weight:600;margin:0 0 6px">${esc(t)}</p>
@@ -841,7 +939,7 @@ function route() {
 
 /* ========================================================= event wiring */
 document.addEventListener('click', ev => {
-  const t = ev.target.closest('[data-close],[data-v][data-t],[data-k],[data-ref],[data-conc],[data-dict],[data-book],[data-ch],[data-nav],[data-go],[data-tab],[data-expand]');
+  const t = ev.target.closest('[data-cmf],[data-close],[data-v][data-t],[data-k],[data-ref],[data-conc],[data-dict],[data-book],[data-ch],[data-nav],[data-go],[data-tab],[data-expand]');
   if (!t) return;
 
   if (t.dataset.close) return closeSheet();
@@ -856,6 +954,11 @@ document.addEventListener('click', ev => {
     t.classList.add('sel');
     return void wordSheet(+t.dataset.v, +t.dataset.t);
   }
+  if (t.dataset.cmf) {
+    CMF = t.dataset.cmf;
+    return void (CMV == null ? cmChapterSheet() : cmSheet(CMV));
+  }
+  if (t.dataset.k === 'cmch') return void cmChapterSheet();
   if (t.dataset.k) {
     const vi = +t.dataset.v, i = +t.dataset.i;
     if (t.dataset.k === 'place')  return void placeSheet(vi, i);
@@ -863,6 +966,7 @@ document.addEventListener('click', ev => {
     if (t.dataset.k === 'event')  return void eventSheet(vi, i);
     if (t.dataset.k === 'note')   return noteSheet(vi);
     if (t.dataset.k === 'xref')   return xrefSheet(vi);
+    if (t.dataset.k === 'cm')     return void cmSheet(vi);
   }
   if (t.dataset.ref)   return go('#/' + t.dataset.ref);
   if (t.dataset.conc)  return void concSheet(t.dataset.conc);
@@ -895,6 +999,13 @@ document.addEventListener('submit', e => e.preventDefault());
 /* =================================================================== boot */
 async function boot() {
   load();
+  // Register before the first data fetch, not after. The worker claims this
+  // page as soon as it activates, so registering late means the chapter you
+  // are reading on your very first visit never reaches the cache — and
+  // someone who loses signal right after opening the site is left with
+  // nothing. Registering first closes that window.
+  if ('serviceWorker' in navigator)
+    navigator.serviceWorker.register('sw.js').catch(() => {});
   try {
     const [b, m, c] = await Promise.all([
       get('books.json'), get('morph.json'), get('chronology.json')]);
@@ -915,7 +1026,26 @@ async function boot() {
   $('#scrim').onclick = closeSheet;
   window.addEventListener('hashchange', route);
   route();
-  if ('serviceWorker' in navigator)
-    navigator.serviceWorker.register('sw.js').catch(() => {});
+  warm();
+}
+
+/* Once the worker is in control, pull the chapter being read through it so
+   it is in the cache. On a first visit the page is usually fetched before
+   the worker is ready, so without this the current chapter is the one thing
+   missing when the signal drops. */
+async function warm() {
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    await navigator.serviceWorker.ready;
+    if (!navigator.serviceWorker.controller) {
+      await new Promise(res => {
+        navigator.serviceWorker.addEventListener('controllerchange', res, { once: true });
+        setTimeout(res, 4000);
+      });
+    }
+    if (!navigator.serviceWorker.controller) return;
+    const want = `${D}ch/${S.book}.${S.ch}.json`;
+    fetch(want, { cache: 'no-store' }).catch(() => {});
+  } catch { /* caching is a bonus, never a blocker */ }
 }
 boot();
