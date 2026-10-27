@@ -12,6 +12,17 @@ appears — on a phone, with no signal, no account, and no price.
 **Free forever, in both senses.** No cost, and open source. Nobody should have
 to pay to read the Bible in its own language.
 
+## Open it now
+
+**https://jebjarrell1974-debug.github.io/jarrell-codex/**
+
+Nothing to install, nothing to sign up for. Works in Safari on an iPhone and
+Chrome on Android. Add it to the home screen and it runs full-screen like an
+app. After the first visit, every chapter you have opened keeps working with
+no signal.
+
+Or take the whole database and carry it off: **[downloads](https://jebjarrell1974-debug.github.io/jarrell-codex/download/)**.
+
 ---
 
 ## What it does
@@ -27,7 +38,10 @@ to pay to read the Bible in its own language.
 | **Versification** | 20,623 mappings reconciling English, Hebrew, Greek and Latin verse numbering |
 | **People** | 3,067 people with dates, linked to 28,240 verses |
 | **Events** | A 450-event timeline, linked to 17,570 verses |
-| **Dictionary** | Easton's 1897, 6,519 senses across 3,964 headwords, 2,818 tied to a named person |
+| **Dictionary** | Easton's 1897, 6,519 senses under 6,517 headwords, tied to named people where known |
+| **Cross-references** | 432,949, weighted by how strongly the two passages have been linked |
+| **Commentary** | 91,008 units from six commentators written between 1599 and 1885, covering 99.6% of verses |
+| **Search** | Verse text, English gloss to original word, dictionary headwords, and the notes |
 | **Chronology** | Six dated schemes you choose between, never one silently assumed |
 | **Context** | 108,925 historical, cultural and linguistic notes across 93% of verses |
 
@@ -46,13 +60,25 @@ places, notes, audio — hangs off two stable keys and nothing has to be redone.
 
     ./scripts/build_all.sh
 
-About four minutes. Needs `python3` and `git`, nothing else — no frameworks,
+Then, for the website:
+
+    python3 scripts/26_site_data.py        # per-chapter JSON
+    python3 scripts/27_site_study.py       # concordance, places, people, events, dictionary
+    python3 scripts/28_site_search.py      # sharded inverted indexes
+    python3 scripts/29_shard_lexicon.py    # split the lexicon for cheap word taps
+    python3 scripts/30_commentary.py       # the six commentators
+    python3 scripts/31_commentary_index.py # per-verse counts into the chapter files
+    python3 scripts/32_stamp_build.py      # content digest into the service worker
+    python3 scripts/33_commentary_db.py    # commentary.db for the clients
+
+About four minutes for the database. Needs `python3` and `git`, nothing else — no frameworks,
 no package installs. Sources are cloned fresh and pinned by commit hash and
 SHA-256 in `build/manifest.json`, so a rebuild is reproducible down to the byte.
 
-The database is a build artifact and is not committed. 287 MB on disk,
-about 75 MB compressed — an ordinary app download, which is why the whole
-thing ships inside the app instead of needing a server.
+The database is a build artifact and is not committed. 456 MB on disk,
+132 MB compressed, with the commentary a further 148 MB / 48 MB in a second
+file you can attach or ignore. Both are published as downloads, so nobody has
+to rebuild anything to get the whole thing.
 
 ## Is it right?
 
@@ -94,26 +120,45 @@ invented. Regions like Egypt are marked as regions, not as mysteries.
 
 ## The app
 
+`web/` is the one that is finished. Plain HTML, CSS and JavaScript — no
+framework, no build step, no bundler — reading sharded JSON so a word tap
+costs about 30 KB and startup costs 369 KB. A service worker keeps the shell,
+the fonts and every chapter you open, so it works with no signal. Fonts are
+vendored rather than loaded from a CDN: offline has to mean offline, and
+opening your Bible should not make a request to anybody. Sixty browser checks
+run against it at phone viewport, including a first-visit offline test in a
+clean profile.
+
 `android/` holds a Kotlin + Compose client that reads the prebuilt database
-straight out of the APK. The database travels gzipped at 61 MB and expands to
-about 226 MB on first launch — comfortably inside Google Play's 500 MB base
-module limit, so there is no asset pack and no first-run download. Install it
-and it works: on a plane, in a basement, on a handed-over phone with no SIM.
+straight out of the APK. It compiles. The SQL is not a guess — every query was
+benchmarked against the real database first (`scripts/15_queries.py`; a chapter
+opens in 1.6 ms, the worst case is 24.8 ms across all 682,818 morphemes). It
+does not yet show the commentary layer.
 
-**That project has never been compiled.** It was written without an Android
-SDK, so the Kotlin and Gradle config are unverified and the first build will
-need fixing. The SQL inside it is not a guess — every query was benchmarked
-against the real database first (`scripts/15_queries.py`; a chapter opens in
-under 2 ms, the worst case is 24.8 ms across all 682,818 morphemes).
+`reader/` is a reference reader over a real slice of the data, built and tested
+first so the client UI was a port of something known-good.
 
-`reader/` is a working reference reader over a real slice of the data, built
-and tested first so the Compose UI is a port of something known-good.
+## What is missing
+
+**Audio.** It needs a licence from the people who recorded it, and that request
+is still outstanding. The app says so plainly rather than showing a button that
+does nothing.
 
 ## Licence
 
 Code is **MPL-2.0**. The data carries its own licences and its own obligations —
 see **[ATTRIBUTION.md](ATTRIBUTION.md)**, which must travel with any copy.
 
+Two larger commentary collections were available and were deliberately left
+out: one carries an explicit fair-use notice over excerpts still under
+copyright, the other dates its translations as "19th-century and later". Fair
+use is a defence tied to a particular use and does not travel to everyone
+downstream. This is meant to be copied by people who will never open a licence
+file, so anything whose terms cannot be stood behind is not in it.
+ATTRIBUTION.md records which and why.
+
 Built on the generosity of scholars who gave their work away: Tyndale House
-Cambridge, Clear Bible, OpenBible.info, Theographic, and the Westminster
-Leningrad Codex through OpenScriptures.
+Cambridge, Clear Bible, OpenBible.info, Theographic, unfoldingWord, and the
+Westminster Leningrad Codex through OpenScriptures. And on six commentators
+who have been dead for between a century and four hundred years, and who are
+still arguing.

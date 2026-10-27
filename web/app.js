@@ -839,6 +839,39 @@ function aboutView() {
     `<div class="mo"><p style="font-weight:600;margin:0 0 6px">${esc(t)}</p>
      <p class="de" style="margin:0">${esc(b)}</p></div>`));
 
+  o.push(`<p class="lbl" style="margin:24px 0 8px">Take the whole thing</p>`);
+  o.push(`<p class="de">Everything behind this page is one database you can
+    download and keep. It needs no connection, no account and no permission.
+    Put it on a memory stick and hand it to somebody.</p>`);
+  o.push(`<div class="mo"><p style="font-weight:600;margin:0 0 6px">The Bible</p>
+    <p class="de" style="margin:0 0 8px">Text, parsing, lexicons, translations,
+    places, people, events, dates, dictionary, notes and cross-references.
+    132 MB to download, 456 MB once unpacked. It comes in two pieces because
+    GitHub will not host a single file this big \u2014 take both, then join
+    them.</p>
+    <a class="more" style="display:block" href="download/bible.db.gz.part00"
+       download>Download part 1 of 2 \u00b7 90 MB \u2193</a>
+    <a class="more" style="display:block" href="download/bible.db.gz.part01"
+       download>Download part 2 of 2 \u00b7 42 MB \u2193</a>
+    <p class="oc" style="margin-top:10px">Mac or Linux:</p>
+    <p class="de" style="font-family:var(--mono);font-size:.76rem;
+       background:var(--accent-soft);padding:9px;border-radius:7px;
+       overflow-x:auto;white-space:pre">cat bible.db.gz.part* > bible.db.gz
+gunzip bible.db.gz</p>
+    <p class="oc">Windows:</p>
+    <p class="de" style="font-family:var(--mono);font-size:.76rem;
+       background:var(--accent-soft);padding:9px;border-radius:7px;
+       overflow-x:auto;white-space:pre">copy /b bible.db.gz.part00 + bible.db.gz.part01 bible.db.gz</p>
+    </div>`);
+  o.push(`<div class="mo"><p style="font-weight:600;margin:0 0 6px">The commentaries</p>
+    <p class="de" style="margin:0 0 8px">All six, keyed to the verse. Separate
+    file, so you can skip it if you are short of room. 48 MB to download,
+    148 MB unpacked.</p>
+    <a class="more" style="display:inline-block" href="download/commentary.db.gz"
+       download>Download commentary.db.gz \u2193</a></div>`);
+  o.push(`<p class="oc">Both are plain SQLite. Checksums in
+    <a href="download/SHA256SUMS.txt">SHA256SUMS.txt</a>.</p>`);
+
   o.push(`<p class="lbl" style="margin:24px 0 8px">Licence</p>`);
   o.push(`<p class="de">The code is MPL-2.0. The assembled data is CC BY-SA 4.0,
     because unfoldingWord’s notes are share-alike and that carries. Take it,
