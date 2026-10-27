@@ -96,7 +96,7 @@ async def main():
 
         async def listen(h):
             await reset(h)
-            await pg.click('.listen')
+            await pg.locator('.listen').first.click()
             await pg.wait_for_function(
                 "() => { const p=document.getElementById('player');"
                 " return p && !p.hidden && !/Finding a reading/.test("
@@ -106,11 +106,18 @@ async def main():
         # ------------------------------------------------- the control itself
         print('\nthe Listen control')
         await reset('#/Jhn.3')
-        chk('a chapter offers a Listen control', await pg.locator('.listen').count() == 1)
+        # one at the head of the chapter and one at its foot: Psalm 119 runs
+        # to 176 verses, and someone who reaches the end of it should not have
+        # to scroll back to the top to find the button
+        nl = await pg.locator('.listen').count()
+        chk('a chapter offers a Listen control at each end', nl == 2, nl)
         chk('it says so in words, not only an icon',
-            'listen' in (await pg.inner_text('.listen')).lower(),
-            await pg.inner_text('.listen'))
-        box = await pg.locator('.listen').bounding_box()
+            'listen' in (await pg.locator('.listen').first.inner_text()).lower(),
+            await pg.locator('.listen').first.inner_text())
+        chk('the one at the foot names the chapter',
+            'John 3' in await pg.locator('.listen').last.inner_text(),
+            await pg.locator('.listen').last.inner_text())
+        box = await pg.locator('.listen').first.bounding_box()
         chk('the control clears a 48px tap target', box['height'] >= 48, box['height'])
         chk('the player starts hidden', await pg.get_attribute('#player', 'hidden') is not None)
 
@@ -226,13 +233,38 @@ async def main():
         print('\noffline, where a streamed reading cannot work')
         await reset('#/Jhn.3')
         await pg.evaluate("() => Object.defineProperty(navigator,'onLine',{get:()=>false})")
-        await pg.click('.listen')
+        await pg.locator('.listen').first.click()
         await pg.wait_for_timeout(1200)
         note = await pg.inner_text('#plNote')
         chk('it says you are offline', 'offline' in note.lower(), note)
         chk('it says the readings are streamed', 'streamed' in note.lower(), note)
         chk('and that the text itself still works',
             'still works offline' in note.lower(), note)
+
+        print('\ncrediting the readings')
+        await reset('#/about')
+        ab = await pg.inner_text('#view')
+        chk('LibriVox is in the list of sources', 'LibriVox' in ab)
+        chk('so is archive.org, where the files actually live', 'archive.org' in ab)
+        chk('and it says nothing is stored here', 'Nothing is stored here' in ab, ab[:0])
+        chk('the photographs are credited too', 'Wikimedia Commons' in ab)
+        chk('and the engravings', 'Dor' in ab and '1866' in ab)
+        ft = await pg.inner_text('.foot') if await pg.locator('.foot').count() else ''
+        await reset('#/Jhn.3')
+        ft = await pg.inner_text('.foot')
+        chk('the footer names the readings too',
+            'LibriVox' in ft and 'archive.org' in ft, ft[-200:])
+
+        print('\nthe Reading sheet points at the recordings')
+        await pg.click('#btnAa')
+        await pg.wait_for_timeout(250)
+        sh = await pg.inner_text('#sheet')
+        chk('it offers to have the text read aloud',
+            'read to you' in sh.lower(), sh[:200])
+        chk('and says the recordings need a connection',
+            'need a connection' in sh.lower(), sh[:300])
+        await pg.evaluate("() => closeSheet()")
+        await pg.wait_for_timeout(200)
 
         # ----------------------------------- the colour / chronology split
         print('\ncolour and chronology, which used to share one setting')

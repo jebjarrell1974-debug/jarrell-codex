@@ -8,9 +8,15 @@ file, in canonical order, and carrying each one's verse count lets the
 player offer an estimated starting point - clearly labelled as an
 estimate, because nothing here is a real timing.
 """
-import io, json, os, collections
+import io, json, os, sys, collections
 SITE = '/home/claude/site/data'
-src = json.load(io.open(os.path.join(SITE, 'audio.json'), encoding='utf-8'))
+# Reads the flat index build_audio.py produces on the machine with open
+# internet, not the reshaped one this script writes - pass it explicitly so
+# a second run cannot silently consume its own output.
+SRC = sys.argv[1] if len(sys.argv) > 1 else os.path.join(SITE, 'audio_flat.json')
+src = json.load(io.open(SRC, encoding='utf-8'))
+assert 'chapters' in src and 'files' not in src, (
+    SRC + ' is already reshaped; give me build_audio.py's output')
 books = json.load(io.open(os.path.join(SITE, 'books.json'), encoding='utf-8'))
 order = [b[0] for b in books['books']]
 nch = {b[0]: b[3] for b in books['books']}
@@ -45,7 +51,12 @@ for url, keys in groups.items():
         'mb': e['mb'],
         'ch': keys,
         'vs': [vcount[k] for k in keys],
-        'one': bool(e['exact']) and len(keys) == 1,
+        # A file holding exactly one of our chapters is a recording of
+        # that chapter alone, whatever the source title said. Obadiah,
+        # 2 John, 3 John and Jude are one-chapter books that the
+        # complete-Bible set gives a file each; the title parsing read
+        # those as ranges, so the 'exact' flag called them excerpts.
+        'one': len(keys) == 1,
     })
     for i, k in enumerate(keys):
         chapters[k] = [fi, i]
