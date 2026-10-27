@@ -199,3 +199,7 @@ input[type=search]{width:100%;background:var(--surface);border:1px solid var(--l
   color:var(--accent);font-weight:600}
 .opt:active{border-color:var(--accent)}
 #btnAa{font-size:var(--t4)}
+/* links that are styled as option rows still need to look tappable */
+a.opt{text-decoration:none;display:flex;align-items:center}
+a.opt:visited{color:var(--ink)}
+figure img{max-width:100%}

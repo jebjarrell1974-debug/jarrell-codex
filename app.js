@@ -6,7 +6,7 @@ const D = 'data/';
 const S = {
   books: [], names: {}, bookIx: {},
   morph: {}, chron: null, order: null,
-  place: null, person: null, event: null, dictIx: null, cmMeta: null,
+  place: null, person: null, event: null, dictIx: null, cmMeta: null, pix: null,
   man: null, dlTiers: {},
   fs: 19, theme: 'light',
   lex: {}, conc: {}, idx: {},
@@ -71,7 +71,8 @@ const lazy = {
   person: () => S.person || get('person.json').then(d => S.person = d),
   event: () => S.event || get('event.json').then(d => S.event = d),
   dictIx: () => S.dictIx || get('dict_index.json').then(d => S.dictIx = d),
-  cmMeta: () => S.cmMeta || get('commentary.json').then(d => S.cmMeta = d)
+  cmMeta: () => S.cmMeta || get('commentary.json').then(d => S.cmMeta = d),
+  pix: () => S.pix || get('pix_manifest.json').then(d => S.pix = d)
 };
 
 /* ------------------------------------------------------------- references */
@@ -377,7 +378,7 @@ async function dictSheet(term) {
 /* ------------------------------------------------- place / person / event */
 async function placeSheet(vi, i) {
   const p = (CH.v[vi].p || [])[i]; if (!p) return;
-  await lazy.place();
+  await Promise.all([lazy.place(), lazy.pix().catch(() => {})]);
   const d = (S.place || {})[p[0]] || {};
   const lat = d.lat != null ? d.lat : p[2], lon = d.lon != null ? d.lon : p[3];
   const STAT = {
@@ -389,6 +390,23 @@ async function placeSheet(vi, i) {
   const st = STAT[d.status || p[1]] || STAT.unknown;
   const o = [`<p class="lbl">Place &middot; ${esc(refLabel(CH.b + '.' + CH.c + '.' + CH.v[vi].n))}</p>`];
   o.push(`<div class="hw"><span style="font-size:1.4rem;font-weight:600">${esc(p[0])}</span></div>`);
+  const pic = (S.pix || {})[p[0]];
+  if (pic) {
+    // Attribution is a licence condition for most of these, not a courtesy,
+    // so the credit travels with the picture rather than being tucked away.
+    const credit = [pic.artist, pic.licence].filter(Boolean).join(' \u00b7 ');
+    o.push(`<figure style="margin:0 0 14px">
+      <img src="data/pix/${esc(pic.file)}" alt="Photograph of ${esc(p[0])}"
+        width="${pic.w}" height="${pic.h}" loading="lazy" decoding="async"
+        style="width:100%;height:auto;border-radius:10px;display:block;
+               background:var(--line-soft)">
+      <figcaption class="oc" style="margin-top:6px">${
+        (d.status || p[1]) === 'disputed'
+          ? 'A photograph of <b>one</b> of the proposed sites. '
+          : ''}${credit ? esc(credit) : 'Wikimedia Commons'}${
+        pic.page ? ` \u00b7 <a href="${esc(pic.page)}" target="_blank" rel="noopener">source</a>` : ''
+      }</figcaption></figure>`);
+  }
   if (d.modern) o.push(`<p class="de">Today: <b>${esc(d.modern)}</b></p>`);
   o.push(`<p class="pa"><b>${esc(st[0])}.</b> ${esc(st[1])}</p>`);
   if (d.types) o.push(`<p class="pa">Type: ${esc(String(d.types).replace(/[,;]+/g, ', '))}</p>`);
@@ -407,9 +425,20 @@ async function placeSheet(vi, i) {
     } else if (st2 === 'identified') {
       o.push('<p class="pa">The sources are unanimous on this one.</p>');
     }
-    o.push(`<p style="margin-top:10px"><a class="more" style="display:inline-block"
-      target="_blank" rel="noopener"
-      href="https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=9/${lat}/${lon}">Open the map ↗</a></p>`);
+    // Three ways to look at it: the plain map, the ground from above, and
+    // street level wherever anyone has driven a camera down that road.
+    o.push(`<p class="lbl" style="margin:16px 0 6px">Go and look</p>
+      <div class="opts">
+      <a class="opt" target="_blank" rel="noopener"
+        href="https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=10/${lat}/${lon}">Map ↗</a>
+      <a class="opt" target="_blank" rel="noopener"
+        href="https://www.google.com/maps/@${lat},${lon},2500m/data=!3m1!1e3">From above ↗</a>
+      <a class="opt" target="_blank" rel="noopener"
+        href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lon}">Stand there and look around ↗</a>
+      </div>
+      <p class="pa">Street level only exists where somebody has driven a camera
+      down that road, which for a good many of these is nowhere. All three open
+      in another app and need a connection.</p>`);
   } else o.push('<p class="oc">No coordinates — the site is unlocated.</p>');
   if (d.n) {
     o.push(`<p class="lbl" style="margin:18px 0 6px">Named in ${d.n} verse${d.n === 1 ? '' : 's'}</p>`);
