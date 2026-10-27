@@ -1,7 +1,14 @@
 /* Cache the shell up front; cache data files as they are read, so a chapter
    you have opened once opens again with no signal. */
-const SHELL = 'codex-shell-v2';
-const DATA  = 'codex-data-v1';
+/* BUILD is stamped by scripts/32_stamp_build.py from a digest of everything
+   under data/. Any change to the text, the lexicons, the commentary or the
+   indexes changes this string, which changes this file, which makes the
+   browser fetch a new worker, which drops the stale data cache on activate.
+   Without that, someone who opened the site once would keep the old data
+   for ever. */
+const BUILD = '889d00c5760e';
+const SHELL = 'codex-shell-' + BUILD;
+const DATA  = 'codex-data-' + BUILD;
 const CORE  = ['./', 'index.html', 'app.css', 'app.js', 'icon.svg',
                'manifest.webmanifest',
                'font/spectral-400.woff2', 'font/spectral-600.woff2',
@@ -40,9 +47,16 @@ self.addEventListener('fetch', e => {
       if (res.ok) cache.put(req, res.clone());
       return res;
     } catch (err) {
-      const shell = await caches.open(SHELL);
-      return (await shell.match('index.html')) ||
-        new Response('Offline and not cached yet.', { status: 503 });
+      // Only a page navigation gets the shell back. Handing index.html to a
+      // request for JSON makes the caller think it got data, and the reader
+      // then reports an empty lexicon instead of saying it is offline.
+      if (req.mode === 'navigate') {
+        const shell = await caches.open(SHELL);
+        const idx = await shell.match('index.html') || await shell.match('./');
+        if (idx) return idx;
+      }
+      return new Response('Offline, and this file has not been downloaded yet.',
+        { status: 504, headers: { 'Content-Type': 'text/plain' } });
     }
   })());
 });

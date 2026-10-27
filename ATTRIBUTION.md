@@ -70,3 +70,48 @@ apply here because the notes are modified on ingest:
   and CSB are individually licensed and rarely granted to independent
   projects. The public-domain pool is what this is built on, by necessity and
   by design.
+
+## Commentary
+
+Six commentaries, all public domain, keyed to the verse. Imported from
+[samueldotj/bible-commentaries](https://github.com/samueldotj/bible-commentaries),
+which records the provenance and terms of each digital module in
+`sources/{id}/SOURCE.md`.
+
+| Work | Date | Coverage |
+|---|---|---|
+| Matthew Henry, *Commentary on the Whole Bible* | 1708–1710 | whole Bible |
+| Geneva Bible marginal notes | 1599 | whole Bible |
+| John Calvin, *Commentaries* (Calvin Translation Society) | 1840s–50s | most books |
+| Matthew Poole, *English Annotations on the Holy Bible* | 1683–1685 | whole Bible |
+| John Trapp, *A Commentary upon All the Books* | 1647–1656 | whole Bible |
+| C. H. Spurgeon, *The Treasury of David* | 1869–1885 | Psalms |
+
+91,008 units, 336,143 paragraphs, all 1,189 chapters, 99.6% of verses.
+
+### What was deliberately left out
+
+Two further collections were available and were not used.
+
+**The Early Church Fathers module** in the same repository claims public
+domain, but its own description puts the English translations at
+"19th-century and later". A translation published after 1929 may still be in
+copyright, and that cannot be settled author by author across 271 authors.
+
+**[HistoricalChristianFaith/Commentaries-Database](https://github.com/HistoricalChristianFaith/Commentaries-Database)**
+is a much larger collection — 78,118 files across 339 authors — but its
+LICENSE carries an explicit fair use notice: "Some commentaries in this
+repository are limited excerpts from works still under copyright by their
+authors or estates."
+
+Fair use is a defence that depends on a particular use. It does not travel
+to everyone downstream. This Bible exists to be copied, redistributed and
+handed out by people who will never read a licence file, so anything whose
+terms cannot be stood behind without qualification is not in it.
+
+## Fonts
+
+Spectral, Noto Serif and Noto Serif Hebrew, under the SIL Open Font Licence
+1.1. Vendored into `web/font/` rather than loaded from a font CDN: the reader
+has to work with no signal, and it should not make a request to anyone when
+someone opens their Bible.
