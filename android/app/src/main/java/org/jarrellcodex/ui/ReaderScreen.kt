@@ -47,7 +47,18 @@ fun ReaderScreen(vm: ReaderViewModel) {
     }
 
     Scaffold(topBar = {
-        TopAppBar(title = { Text("${s.book} ${s.chapter}") })
+        TopAppBar(
+            title = {
+                // The title is the way out of this chapter, so make it a button.
+                TextButton(onClick = { vm.openPicker() }) {
+                    Text(
+                        "${vm.bookName(s.book)} ${s.chapter}",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+            },
+        )
     }) { pad ->
         LazyColumn(
             Modifier.fillMaxSize().padding(pad),
@@ -78,6 +89,25 @@ fun ReaderScreen(vm: ReaderViewModel) {
                     onCommentary = { vm.openCommentary(v.verseKey) },
                 )
             }
+            item {
+                ChapterStepper(
+                    prev = vm.neighbour(-1),
+                    next = vm.neighbour(1),
+                    nameOf = { vm.bookName(it) },
+                    onStep = { vm.step(it) },
+                )
+            }
+        }
+    }
+
+    if (s.picking) {
+        ModalBottomSheet(onDismissRequest = { vm.closePicker() }) {
+            BookPicker(
+                books = s.books,
+                chaptersFor = s.pickingChaptersFor,
+                onBook = { vm.pickBook(it) },
+                onChapter = { b, n -> vm.open(b.code, n) },
+            )
         }
     }
 

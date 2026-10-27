@@ -61,6 +61,8 @@ class CodexRepository(private val context: Context) {
         )
     }
 
+    suspend fun books(): List<BookRef> = withContext(Dispatchers.IO) { dao.books() }
+
     suspend fun schemes(): List<Scheme> = withContext(Dispatchers.IO) { dao.schemes() }
 
     suspend fun chronologyNotes(): List<ChronologyNote> =

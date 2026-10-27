@@ -157,10 +157,43 @@ class CodexDao(context: Context) {
         "SELECT heading, body FROM chronology_note ORDER BY sort_order",
     ) { c -> ChronologyNote(c.str("heading") ?: "", c.str("body") ?: "") }
 
+    /**
+     * Every book with its chapter count and the names a reader might type.
+     * book_name carries the full name and the usual abbreviations; without
+     * this the app can open Genesis 1 and nothing else.
+     */
+    fun books() = query(
+        """SELECT v.book, v.book_order, v.testament, MAX(v.chapter) AS chapters,
+                  (SELECT b.name FROM book_name b
+                    WHERE b.book = v.book AND b.kind = 'full'
+                    ORDER BY b.rowid LIMIT 1) AS full_name
+           FROM verse v GROUP BY v.book, v.book_order, v.testament
+           ORDER BY v.book_order""",
+    ) { c ->
+        BookRef(
+            code = c.str("book") ?: "",
+            order = c.int("book_order") ?: 0,
+            testament = c.str("testament") ?: "OT",
+            chapters = c.int("chapters") ?: 1,
+            // Job has no 'full' row - the source lists no separate full name
+            // for a book already called Job - so fall back to the code rather
+            // than rendering an empty title.
+            name = c.str("full_name") ?: c.str("book") ?: "",
+        )
+    }
+
     fun tokenCount(): Int =
         db.rawQuery("SELECT COUNT(*) FROM token", null)
             .use { if (it.moveToFirst()) it.getInt(0) else 0 }
 }
+
+data class BookRef(
+    val code: String,
+    val order: Int,
+    val testament: String,       // OT | NT
+    val chapters: Int,
+    val name: String,
+)
 
 data class ConcordanceRow(
     val book: String, val chapter: Int, val verse: Int,

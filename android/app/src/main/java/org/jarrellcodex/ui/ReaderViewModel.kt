@@ -16,6 +16,9 @@ data class ReaderState(
     val verses: List<VerseBlock> = emptyList(),
     val selected: WordStudy? = null,
     val context: VerseContext? = null,
+    val books: List<BookRef> = emptyList(),
+    val picking: Boolean = false,          // the book list is open
+    val pickingChaptersFor: BookRef? = null,
     val schemes: List<Scheme> = emptyList(),
     val schemeId: String = "jones",
     val error: String? = null,
@@ -43,12 +46,14 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
         _state.value = _state.value.copy(loading = true, error = null, selected = null, context = null)
         runCatching {
             val schemes = repo.schemes()
+            val books = if (_state.value.books.isEmpty()) repo.books() else _state.value.books
             val default = schemes.firstOrNull { it.isDefault }?.schemeId ?: "jones"
             val verses = repo.chapter(book, chapter)
             val ready = repo.hasCommentary()
             _state.value = _state.value.copy(
                 loading = false, book = book, chapter = chapter,
-                verses = verses, schemes = schemes,
+                verses = verses, schemes = schemes, books = books,
+                picking = false, pickingChaptersFor = null,
                 schemeId = _state.value.schemeId.takeIf { s -> schemes.any { it.schemeId == s } } ?: default,
                 commentaryReady = ready,
                 commentaryOffered = !ready && repo.commentaryAvailable(),
@@ -58,6 +63,45 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
             _state.value = _state.value.copy(loading = false, error = e.message ?: "Could not open the text")
         }
     }
+
+    // ---- moving around the text -----------------------------------------
+
+    fun openPicker() { _state.value = _state.value.copy(picking = true, pickingChaptersFor = null) }
+    fun pickBook(b: BookRef) { _state.value = _state.value.copy(pickingChaptersFor = b) }
+    fun closePicker() { _state.value = _state.value.copy(picking = false, pickingChaptersFor = null) }
+
+    /** Steps past the end of a book into the next one, the way a reader expects. */
+    fun step(delta: Int) {
+        val s = _state.value
+        val here = s.books.indexOfFirst { it.code == s.book }
+        if (here < 0) return
+        val next = s.chapter + delta
+        when {
+            next in 1..s.books[here].chapters -> open(s.book, next)
+            next < 1 && here > 0 -> s.books[here - 1].let { open(it.code, it.chapters) }
+            next > s.books[here].chapters && here < s.books.lastIndex ->
+                open(s.books[here + 1].code, 1)
+            // first chapter of Genesis or last of Revelation: nowhere to go
+        }
+    }
+
+    /** Null at the ends of the canon, so the UI can hide the button. */
+    fun neighbour(delta: Int): Pair<String, Int>? {
+        val s = _state.value
+        val here = s.books.indexOfFirst { it.code == s.book }
+        if (here < 0) return null
+        val next = s.chapter + delta
+        return when {
+            next in 1..s.books[here].chapters -> s.book to next
+            next < 1 && here > 0 -> s.books[here - 1].let { it.code to it.chapters }
+            next > s.books[here].chapters && here < s.books.lastIndex ->
+                s.books[here + 1].code to 1
+            else -> null
+        }
+    }
+
+    fun bookName(code: String): String =
+        _state.value.books.firstOrNull { it.code == code }?.name ?: code
 
     fun selectWord(token: Token) = viewModelScope.launch {
         val study = repo.wordStudy(token)
