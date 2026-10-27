@@ -206,3 +206,38 @@ figure img{max-width:100%}
   background:var(--line-soft)}
 .plate figcaption{font-size:var(--t1);color:var(--ink-soft);
   margin-top:8px;line-height:1.45}
+
+/* ---- listening -------------------------------------------------------
+   The play control is large and says what it does in words, not only in
+   an icon. The bar sits below the text rather than over it: body gets
+   padding while it is open, so the last verses of a chapter are never
+   hidden behind the controls. */
+.listen{display:flex;align-items:center;gap:10px;width:100%;
+  min-height:var(--tap);margin:0 0 18px;padding:11px 16px;
+  border:1.5px solid var(--line);border-radius:12px;
+  background:var(--surface);color:var(--ink);
+  font-size:var(--t4);text-align:left}
+.listen svg{flex:none;color:var(--accent)}
+.listen:active{background:var(--accent-soft)}
+
+.player{position:fixed;left:0;right:0;bottom:0;z-index:40;
+  background:var(--surface);border-top:1.5px solid var(--line);
+  padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px));
+  box-shadow:0 -4px 18px rgba(0,0,0,.18)}
+.player[hidden]{display:none}
+body.playing{padding-bottom:calc(248px + env(safe-area-inset-bottom,0px))}
+.pl-top{display:flex;align-items:flex-start;gap:10px}
+.pl-txt{flex:1;font-size:var(--t4);line-height:1.45;color:var(--ink)}
+.pl-sub{display:block;font-size:var(--t1);color:var(--ink-soft);margin-top:2px}
+.pl-x{flex:none;width:var(--tap);height:var(--tap);display:flex;
+  align-items:center;justify-content:center;border:1px solid var(--line);
+  border-radius:10px;color:var(--ink)}
+.pl-x:active{background:var(--accent-soft)}
+#plAudio{display:block;width:100%;margin:8px 0 6px;min-height:42px}
+.pl-note{font-size:var(--t1);line-height:1.5;color:var(--ink-soft)}
+.pl-line{display:block;margin-top:5px}
+.pl-note a{color:var(--accent)}
+.pl-b{display:inline-block;margin-top:6px;min-height:40px;padding:8px 12px;
+  border:1px solid var(--accent);border-radius:9px;
+  color:var(--accent);font-size:var(--t1)}
+.pl-b:active{background:var(--accent-soft)}

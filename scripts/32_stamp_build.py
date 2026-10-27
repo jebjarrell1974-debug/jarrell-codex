@@ -21,7 +21,9 @@ for root, dirs, files in os.walk(f'{SITE}/data'):
             h.update(f.read(4096))          # head of each file is enough
         n += 1
 # the client code is part of the build too
-for fn in ('app.js', 'app.css', 'index.html'):
+# scheme.css is precached by the worker too, so a palette change has to
+# invalidate the cache as surely as a code change does.
+for fn in ('app.js', 'app.css', 'scheme.css', 'index.html'):
     with open(f'{SITE}/{fn}', 'rb') as f:
         h.update(f.read())
 
