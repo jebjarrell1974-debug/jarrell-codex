@@ -63,6 +63,25 @@ class CodexRepository(private val context: Context) {
 
     suspend fun books(): List<BookRef> = withContext(Dispatchers.IO) { dao.books() }
 
+    suspend fun notes(verseKey: String): List<TranslationNote> =
+        withContext(Dispatchers.IO) { dao.notes(verseKey) }
+
+    suspend fun xrefs(verseKey: String): List<CrossRef> =
+        withContext(Dispatchers.IO) { dao.xrefs(verseKey) }
+
+    suspend fun translations(): List<TranslationInfo> =
+        withContext(Dispatchers.IO) { dao.translations() }
+
+    /** Verse -> count, for the markers under each verse. One query each. */
+    suspend fun markers(book: String, chapter: Int): Triple<Map<Int, Int>, Map<Int, Int>, Map<Int, Int>> =
+        withContext(Dispatchers.IO) {
+            Triple(
+                if (commentary.isReady) commentary.countsForChapter(book, chapter) else emptyMap(),
+                dao.noteCounts(book, chapter),
+                dao.xrefCounts(book, chapter),
+            )
+        }
+
     suspend fun schemes(): List<Scheme> = withContext(Dispatchers.IO) { dao.schemes() }
 
     suspend fun chronologyNotes(): List<ChronologyNote> =

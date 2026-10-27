@@ -28,6 +28,15 @@ data class ReaderState(
     val unpacking: Boolean = false,
     val unpackProgress: Float = 0f,
     val commentaryCounts: Map<Int, Int> = emptyMap(),
+    val noteCounts: Map<Int, Int> = emptyMap(),
+    val xrefCounts: Map<Int, Int> = emptyMap(),
+    // one sheet at a time, so one nullable each
+    val notes: List<TranslationNote>? = null,
+    val xrefs: List<CrossRef>? = null,
+    val sheetTitle: String = "",
+    val showAbout: Boolean = false,
+    val translations: List<TranslationInfo> = emptyList(),
+    val chronologyNotes: List<ChronologyNote> = emptyList(),
     val commentary: List<CommentaryUnit>? = null,
     val commentaryTitle: String = "",
     // kept apart from `error`, which replaces the whole screen. Failing to
@@ -50,6 +59,7 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
             val default = schemes.firstOrNull { it.isDefault }?.schemeId ?: "jones"
             val verses = repo.chapter(book, chapter)
             val ready = repo.hasCommentary()
+            val marks = repo.markers(book, chapter)
             _state.value = _state.value.copy(
                 loading = false, book = book, chapter = chapter,
                 verses = verses, schemes = schemes, books = books,
@@ -57,12 +67,55 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
                 schemeId = _state.value.schemeId.takeIf { s -> schemes.any { it.schemeId == s } } ?: default,
                 commentaryReady = ready,
                 commentaryOffered = !ready && repo.commentaryAvailable(),
-                commentaryCounts = if (ready) repo.commentaryCounts(book, chapter) else emptyMap(),
+                commentaryCounts = marks.first,
+                noteCounts = marks.second,
+                xrefCounts = marks.third,
             )
         }.onFailure { e ->
             _state.value = _state.value.copy(loading = false, error = e.message ?: "Could not open the text")
         }
     }
+
+    // ---- the context layers ----------------------------------------------
+
+    fun openNotes(verseKey: String) = viewModelScope.launch {
+        _state.value = _state.value.copy(
+            notes = repo.notes(verseKey),
+            sheetTitle = "Notes on " + verseKey.replace('.', ' '),
+        )
+    }
+
+    fun openXrefs(verseKey: String) = viewModelScope.launch {
+        _state.value = _state.value.copy(
+            xrefs = repo.xrefs(verseKey),
+            sheetTitle = "Cross-references from " + verseKey.replace('.', ' '),
+        )
+    }
+
+    fun closeContext() {
+        _state.value = _state.value.copy(notes = null, xrefs = null)
+    }
+
+    /** A cross-reference is only useful if tapping it takes you there. */
+    fun goTo(verseKey: String) {
+        val p = verseKey.split('.')
+        if (p.size >= 2) {
+            closeContext()
+            open(p[0], p[1].toIntOrNull() ?: 1)
+        }
+    }
+
+    fun openAbout() = viewModelScope.launch {
+        _state.value = _state.value.copy(
+            showAbout = true,
+            translations = if (_state.value.translations.isEmpty()) repo.translations()
+                           else _state.value.translations,
+            chronologyNotes = if (_state.value.chronologyNotes.isEmpty()) repo.chronologyNotes()
+                              else _state.value.chronologyNotes,
+        )
+    }
+
+    fun closeAbout() { _state.value = _state.value.copy(showAbout = false) }
 
     // ---- moving around the text -----------------------------------------
 

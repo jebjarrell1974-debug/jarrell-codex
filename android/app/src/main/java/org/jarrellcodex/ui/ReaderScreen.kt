@@ -58,6 +58,11 @@ fun ReaderScreen(vm: ReaderViewModel) {
                     )
                 }
             },
+            actions = {
+                IconButton(onClick = { vm.openAbout() }) {
+                    Text("i", style = MaterialTheme.typography.titleMedium)
+                }
+            },
         )
     }) { pad ->
         LazyColumn(
@@ -82,11 +87,16 @@ fun ReaderScreen(vm: ReaderViewModel) {
                 }
             }
             items(s.verses, key = { it.verseKey }) { v ->
+                val n = v.number.toIntOrNull() ?: -1
                 VerseRow(
                     v = v,
-                    commentaryCount = s.commentaryCounts[v.number.toIntOrNull() ?: -1] ?: 0,
+                    commentaryCount = s.commentaryCounts[n] ?: 0,
+                    noteCount = s.noteCounts[n] ?: 0,
+                    xrefCount = s.xrefCounts[n] ?: 0,
                     onWord = { vm.selectWord(it) },
                     onCommentary = { vm.openCommentary(v.verseKey) },
+                    onNotes = { vm.openNotes(v.verseKey) },
+                    onXrefs = { vm.openXrefs(v.verseKey) },
                 )
             }
             item {
@@ -111,6 +121,24 @@ fun ReaderScreen(vm: ReaderViewModel) {
         }
     }
 
+    s.notes?.let { ns ->
+        ModalBottomSheet(onDismissRequest = { vm.closeContext() }) {
+            NotesSheet(s.sheetTitle, ns)
+        }
+    }
+
+    s.xrefs?.let { xs ->
+        ModalBottomSheet(onDismissRequest = { vm.closeContext() }) {
+            XrefSheet(s.sheetTitle, xs, { vm.bookName(it) }) { vm.goTo(it) }
+        }
+    }
+
+    if (s.showAbout) {
+        ModalBottomSheet(onDismissRequest = { vm.closeAbout() }) {
+            AboutSheet(s.translations, s.schemes, s.chronologyNotes)
+        }
+    }
+
     s.commentary?.let { units ->
         ModalBottomSheet(onDismissRequest = { vm.closeCommentary() }) {
             CommentarySheet(s.commentaryTitle, units)
@@ -129,8 +157,12 @@ fun ReaderScreen(vm: ReaderViewModel) {
 private fun VerseRow(
     v: VerseBlock,
     commentaryCount: Int,
+    noteCount: Int,
+    xrefCount: Int,
     onWord: (Token) -> Unit,
     onCommentary: () -> Unit,
+    onNotes: () -> Unit,
+    onXrefs: () -> Unit,
 ) {
     Row(Modifier.padding(vertical = 10.dp)) {
         Text(
@@ -162,14 +194,30 @@ private fun VerseRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            if (commentaryCount > 0) {
-                Spacer(Modifier.height(4.dp))
-                TextButton(onClick = onCommentary, contentPadding = PaddingValues(0.dp)) {
-                    Text(
-                        "\u00a7 $commentaryCount commentar" +
-                            if (commentaryCount == 1) "y" else "ies",
-                        style = MaterialTheme.typography.labelMedium,
-                    )
+            if (noteCount > 0 || xrefCount > 0 || commentaryCount > 0) {
+                Spacer(Modifier.height(2.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (noteCount > 0) {
+                        TextButton(onClick = onNotes, contentPadding = PaddingValues(4.dp)) {
+                            Text("\u270e $noteCount note" + if (noteCount == 1) "" else "s",
+                                 style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                    if (xrefCount > 0) {
+                        TextButton(onClick = onXrefs, contentPadding = PaddingValues(4.dp)) {
+                            Text("\u21c4 $xrefCount link" + if (xrefCount == 1) "" else "s",
+                                 style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                    if (commentaryCount > 0) {
+                        TextButton(onClick = onCommentary, contentPadding = PaddingValues(4.dp)) {
+                            Text(
+                                "\u00a7 $commentaryCount commentar" +
+                                    if (commentaryCount == 1) "y" else "ies",
+                                style = MaterialTheme.typography.labelMedium,
+                            )
+                        }
+                    }
                 }
             }
         }

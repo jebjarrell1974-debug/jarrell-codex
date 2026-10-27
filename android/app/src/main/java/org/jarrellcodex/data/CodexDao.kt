@@ -158,6 +158,65 @@ class CodexDao(context: Context) {
     ) { c -> ChronologyNote(c.str("heading") ?: "", c.str("body") ?: "") }
 
     /**
+     * The translators' notes on a verse - what the original actually says,
+     * where the idiom will not carry, what a reader in that culture would
+     * have heard. The "cultural context" layer, verse by verse.
+     */
+    fun notes(verseKey: String) = query(
+        """SELECT quote, category, body, source FROM note
+           WHERE verse_key = ? ORDER BY note_id""",
+        verseKey,
+    ) { c ->
+        TranslationNote(
+            quote = c.str("quote"), category = c.str("category"),
+            body = c.str("body") ?: "", source = c.str("source") ?: "",
+        )
+    }
+
+    fun noteCounts(book: String, chapter: Int): Map<Int, Int> {
+        val out = HashMap<Int, Int>()
+        db.rawQuery(
+            "SELECT verse, COUNT(*) FROM note WHERE book = ? AND chapter = ? GROUP BY verse",
+            arrayOf(book, chapter.toString()),
+        ).use { c -> while (c.moveToNext()) out[c.getInt(0)] = c.getInt(1) }
+        return out
+    }
+
+    /**
+     * Cross-references, heaviest first. The vote is how strongly editors and
+     * readers have linked the two passages - a weight, not a certainty, and
+     * the UI says so.
+     */
+    fun xrefs(verseKey: String, limit: Int = 60) = query(
+        """SELECT to_key, to_end_key, votes FROM xref
+           WHERE from_key = ? ORDER BY votes DESC LIMIT ?""",
+        verseKey, limit.toString(),
+    ) { c ->
+        CrossRef(
+            toKey = c.str("to_key") ?: "", toEndKey = c.str("to_end_key"),
+            votes = c.int("votes") ?: 0,
+        )
+    }
+
+    fun xrefCounts(book: String, chapter: Int): Map<Int, Int> {
+        val out = HashMap<Int, Int>()
+        db.rawQuery(
+            """SELECT v.verse, COUNT(*) FROM xref x
+               JOIN verse v ON v.verse_key = x.from_key
+               WHERE v.book = ? AND v.chapter = ? GROUP BY v.verse""",
+            arrayOf(book, chapter.toString()),
+        ).use { c -> while (c.moveToNext()) out[c.getInt(0)] = c.getInt(1) }
+        return out
+    }
+
+    /** What the About screen has to show: CC BY means attribution travels. */
+    fun translations() = query(
+        "SELECT code, name, licence FROM translation ORDER BY code",
+    ) { c ->
+        TranslationInfo(c.str("code") ?: "", c.str("name") ?: "", c.str("licence") ?: "")
+    }
+
+    /**
      * Every book with its chapter count and the names a reader might type.
      * book_name carries the full name and the usual abbreviations; without
      * this the app can open Genesis 1 and nothing else.
@@ -186,6 +245,33 @@ class CodexDao(context: Context) {
         db.rawQuery("SELECT COUNT(*) FROM token", null)
             .use { if (it.moveToFirst()) it.getInt(0) else 0 }
 }
+
+data class TranslationNote(
+    val quote: String?,
+    val category: String?,
+    val body: String,
+    val source: String,
+)
+
+data class CrossRef(val toKey: String, val toEndKey: String?, val votes: Int) {
+    val book: String get() = toKey.substringBefore('.')
+
+    /**
+     * "Rom.5.8" with a display name -> "Romans 5:8"; a range that stays in
+     * the same chapter collapses to "Romans 5:8-10" rather than repeating it.
+     * The name is passed in because only the UI knows how a book is spelled.
+     */
+    fun label(name: String): String {
+        val p = toKey.split('.')
+        if (p.size < 3) return name
+        val base = "$name ${p[1]}:${p[2]}"
+        val e = toEndKey?.split('.') ?: return base
+        if (e.size < 3) return base
+        return if (e[1] == p[1]) "$base-${e[2]}" else "$base \u2013 ${e[1]}:${e[2]}"
+    }
+}
+
+data class TranslationInfo(val code: String, val name: String, val licence: String)
 
 data class BookRef(
     val code: String,
