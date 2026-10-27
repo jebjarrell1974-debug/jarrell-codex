@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jarrellcodex.data.*
 
@@ -37,6 +39,13 @@ data class ReaderState(
     val showAbout: Boolean = false,
     val translations: List<TranslationInfo> = emptyList(),
     val chronologyNotes: List<ChronologyNote> = emptyList(),
+    val searching: Boolean = false,
+    val query: String = "",
+    val searchMode: SearchMode = SearchMode.Verses,
+    val searchRunning: Boolean = false,
+    val hitsVerses: List<SearchHit> = emptyList(),
+    val hitsNotes: List<SearchHit> = emptyList(),
+    val hitsWords: List<LexHit> = emptyList(),
     val commentary: List<CommentaryUnit>? = null,
     val commentaryTitle: String = "",
     // kept apart from `error`, which replaces the whole screen. Failing to
@@ -74,6 +83,61 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
         }.onFailure { e ->
             _state.value = _state.value.copy(loading = false, error = e.message ?: "Could not open the text")
         }
+    }
+
+    // ---- searching --------------------------------------------------------
+
+    private var searchJob: Job? = null
+
+    fun openSearch() { _state.value = _state.value.copy(searching = true) }
+    fun closeSearch() {
+        searchJob?.cancel()
+        _state.value = _state.value.copy(searching = false, searchRunning = false)
+    }
+    fun setMode(m: SearchMode) {
+        _state.value = _state.value.copy(searchMode = m)
+        runSearch(_state.value.query)
+    }
+
+    /**
+     * Debounced, and the previous search is cancelled before a new one starts.
+     * Typing "covenant" would otherwise fire eight searches and let whichever
+     * finished last win, which is not necessarily the one matching what is on
+     * screen.
+     */
+    fun setQuery(q: String) {
+        _state.value = _state.value.copy(query = q)
+        runSearch(q)
+    }
+
+    private fun runSearch(q: String) {
+        searchJob?.cancel()
+        if (q.isBlank()) {
+            _state.value = _state.value.copy(
+                searchRunning = false, hitsVerses = emptyList(),
+                hitsNotes = emptyList(), hitsWords = emptyList(),
+            )
+            return
+        }
+        searchJob = viewModelScope.launch {
+            delay(250)
+            _state.value = _state.value.copy(searchRunning = true)
+            when (_state.value.searchMode) {
+                SearchMode.Verses ->
+                    _state.value = _state.value.copy(hitsVerses = repo.searchVerses(q))
+                SearchMode.Notes ->
+                    _state.value = _state.value.copy(hitsNotes = repo.searchNotes(q))
+                SearchMode.Words ->
+                    _state.value = _state.value.copy(hitsWords = repo.searchLexicon(q))
+            }
+            _state.value = _state.value.copy(searchRunning = false)
+        }
+    }
+
+    /** Jumping from a search result should leave the search behind. */
+    fun goToFromSearch(verseKey: String) {
+        closeSearch()
+        goTo(verseKey)
     }
 
     // ---- the context layers ----------------------------------------------

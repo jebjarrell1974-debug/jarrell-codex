@@ -209,6 +209,73 @@ class CodexDao(context: Context) {
         return out
     }
 
+    /**
+     * Full-text search over the English verses, built as FTS4 at database
+     * time, so this is an index hit rather than a scan. Benchmarked under
+     * 400 ms for the worst query in scripts/19_search.py.
+     *
+     * FTS treats several characters as operators. A reader typing an
+     * apostrophe or a hyphen means them literally, so the term is quoted and
+     * any embedded quote stripped - otherwise "Jacob's" is a syntax error
+     * thrown at somebody looking for Jacob.
+     */
+    fun searchVerses(q: String, limit: Int = 200) = query(
+        """SELECT s.verse_key, s.code, s.text
+           FROM search_verse s JOIN verse v ON v.verse_key = s.verse_key
+           WHERE search_verse MATCH ? AND s.code = 'KJV'
+           ORDER BY v.book_order, v.chapter, v.verse LIMIT ?""",
+        ftsQuery(q), limit.toString(),
+    ) { c ->
+        SearchHit(
+            verseKey = c.str("verse_key") ?: "",
+            text = c.str("text") ?: "",
+        )
+    }
+
+    /** The same over the translators' notes. */
+    fun searchNotes(q: String, limit: Int = 200) = query(
+        """SELECT n.verse_key, substr(n.body, 1, 180) AS text
+           FROM search_note s
+           JOIN note n ON n.note_id = s.note_id
+           JOIN verse v ON v.verse_key = n.verse_key
+           WHERE search_note MATCH ?
+           ORDER BY v.book_order, v.chapter, v.verse LIMIT ?""",
+        ftsQuery(q), limit.toString(),
+    ) { c ->
+        SearchHit(
+            verseKey = c.str("verse_key") ?: "",
+            text = (c.str("text") ?: "").replace("**", ""),
+        )
+    }
+
+    /**
+     * English meaning to original word: "shepherd" -> poimen.
+     *
+     * FTS4 matches any column and has no relevance ranking, so an unordered
+     * search for "shepherd" answers with the Hebrew for "idol" - the word
+     * appears somewhere in its definition. Words whose own gloss or lemma is
+     * the thing being searched for come first, shortest gloss before longest,
+     * which puts the actual shepherd words at the top where they belong.
+     */
+    fun searchLexicon(q: String, limit: Int = 60): List<LexHit> {
+        val like = "%" + q.trim().lowercase() + "%"
+        return query(
+            """SELECT strongs, lemma, gloss,
+                      CASE WHEN lower(gloss) LIKE ? THEN 0
+                           WHEN lower(lemma) LIKE ? THEN 1
+                           ELSE 2 END AS rank
+               FROM search_lexicon
+               WHERE search_lexicon MATCH ?
+               ORDER BY rank, length(gloss) LIMIT ?""",
+            like, like, ftsQuery(q), limit.toString(),
+        ) { c ->
+            LexHit(
+                strongs = c.str("strongs") ?: "", lemma = c.str("lemma") ?: "",
+                gloss = c.str("gloss") ?: "",
+            )
+        }
+    }
+
     /** What the About screen has to show: CC BY means attribution travels. */
     fun translations() = query(
         "SELECT code, name, licence FROM translation ORDER BY code",
@@ -245,6 +312,27 @@ class CodexDao(context: Context) {
         db.rawQuery("SELECT COUNT(*) FROM token", null)
             .use { if (it.moveToFirst()) it.getInt(0) else 0 }
 }
+
+data class SearchHit(val verseKey: String, val text: String) {
+    val book: String get() = verseKey.substringBefore('.')
+    fun label(name: String): String {
+        val p = verseKey.split('.')
+        return if (p.size >= 3) "$name ${p[1]}:${p[2]}" else name
+    }
+}
+
+data class LexHit(val strongs: String, val lemma: String, val gloss: String)
+
+/**
+ * Make a reader's words safe for FTS. Quoting each term keeps apostrophes,
+ * hyphens and stray operators literal; two or more terms become a phrase
+ * requirement, which is what people expect when they type several words.
+ */
+internal fun ftsQuery(raw: String): String =
+    raw.trim().split(Regex("\\s+"))
+        .filter { it.isNotBlank() }
+        .joinToString(" ") { "\"" + it.replace("\"", "") + "\"" }
+        .ifBlank { "\"\"" }
 
 data class TranslationNote(
     val quote: String?,

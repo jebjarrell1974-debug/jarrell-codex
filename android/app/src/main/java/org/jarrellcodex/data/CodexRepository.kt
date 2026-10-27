@@ -69,6 +69,15 @@ class CodexRepository(private val context: Context) {
     suspend fun xrefs(verseKey: String): List<CrossRef> =
         withContext(Dispatchers.IO) { dao.xrefs(verseKey) }
 
+    suspend fun searchVerses(q: String): List<SearchHit> =
+        withContext(Dispatchers.IO) { runCatching { dao.searchVerses(q) }.getOrDefault(emptyList()) }
+
+    suspend fun searchNotes(q: String): List<SearchHit> =
+        withContext(Dispatchers.IO) { runCatching { dao.searchNotes(q) }.getOrDefault(emptyList()) }
+
+    suspend fun searchLexicon(q: String): List<LexHit> =
+        withContext(Dispatchers.IO) { runCatching { dao.searchLexicon(q) }.getOrDefault(emptyList()) }
+
     suspend fun translations(): List<TranslationInfo> =
         withContext(Dispatchers.IO) { dao.translations() }
 

@@ -59,6 +59,9 @@ fun ReaderScreen(vm: ReaderViewModel) {
                 }
             },
             actions = {
+                IconButton(onClick = { vm.openSearch() }) {
+                    Text("\u2315", style = MaterialTheme.typography.titleLarge)
+                }
                 IconButton(onClick = { vm.openAbout() }) {
                     Text("i", style = MaterialTheme.typography.titleMedium)
                 }
@@ -117,6 +120,24 @@ fun ReaderScreen(vm: ReaderViewModel) {
                 chaptersFor = s.pickingChaptersFor,
                 onBook = { vm.pickBook(it) },
                 onChapter = { b, n -> vm.open(b.code, n) },
+            )
+        }
+    }
+
+    if (s.searching) {
+        ModalBottomSheet(onDismissRequest = { vm.closeSearch() }) {
+            SearchSheet(
+                query = s.query,
+                mode = s.searchMode,
+                running = s.searchRunning,
+                verses = s.hitsVerses,
+                notes = s.hitsNotes,
+                words = s.hitsWords,
+                nameOf = { vm.bookName(it) },
+                onQuery = { vm.setQuery(it) },
+                onMode = { vm.setMode(it) },
+                onGo = { vm.goToFromSearch(it) },
+                onWord = { },
             )
         }
     }
