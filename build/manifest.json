@@ -1,5 +1,10 @@
 {
   "repos": {
+    "Bible-Geocoding-Data": {
+      "commit": "7eb18a5ee62f27b9b93bd6689ea272d76dd23b8f",
+      "committed": "2021-10-31T20:57:10-04:00",
+      "origin": "https://github.com/openbibleinfo/Bible-Geocoding-Data.git"
+    },
     "macula-greek": {
       "commit": "8423afe47b9e8f24b7772e808af45c7159a6fe7e",
       "committed": "2026-07-07T11:47:28-04:00",
@@ -14,6 +19,11 @@
       "commit": "be4191f0082aeedddb0eff0c02c966292b2bd641",
       "committed": "2026-10-24T11:54:54+01:00",
       "origin": "https://github.com/STEPBible/STEPBible-Data.git"
+    },
+    "theographic-bible-metadata": {
+      "commit": "744355c7a5f38efd407bc67a5257c99aca9532bc",
+      "committed": "2026-10-22T20:49:45-05:00",
+      "origin": "https://github.com/robertrouse/theographic-bible-metadata.git"
     }
   },
   "files": {

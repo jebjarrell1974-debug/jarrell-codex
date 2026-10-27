@@ -28,6 +28,7 @@ to pay to read the Bible in its own language.
 | **People** | 3,067 people with dates, linked to 28,240 verses |
 | **Events** | A 450-event timeline, linked to 17,570 verses |
 | **Dictionary** | Easton's 1897, 6,519 senses across 3,964 headwords, 2,818 tied to a named person |
+| **Chronology** | Six dated schemes you choose between, never one silently assumed |
 
 ## The idea in one sentence
 
@@ -55,7 +56,7 @@ thing ships inside the app instead of needing a server.
 ## Is it right?
 
 `scripts/09_acceptance.py` and `scripts/12_acceptance_run2.py` prove the thing
-works before anything is built on it: 35 checks, 0 failures. It walks the first word of Genesis 1:1 and of
+works before anything is built on it: 46 checks, 0 failures. It walks the first word of Genesis 1:1 and of
 John 1:1 through all five layers, confirms the versification actually
 reconciles (KJV 2 Corinthians 13:14 resolves to the Greek 13:13), and refuses
 to pass on orphan rows or unresolved morphology.
@@ -66,6 +67,22 @@ more than a handful of words are Mark, John and Luke — the longer ending of
 Mark, the woman taken in adultery, and the agony in the garden. Those are real
 differences between critical editions, not mistakes, and the database keeps
 every variant rather than quietly picking a side.
+
+## Honesty about dates
+
+There is no single biblical chronology, and an app that shows one date without
+saying whose it is has quietly made a choice for you.
+
+So dates are per scheme. Ussher puts creation at 4004 BC, Floyd Nolen Jones at
+4003. For the division of the kingdom after Solomon, the genealogical schemes
+say 974 BC and Thiele says 931 — a 43-year gap in a period both sides consider
+well documented. The app shows you whose number you are looking at and lets you
+switch.
+
+Where a scheme has no date for an event, it returns nothing and says so. It
+never borrows another scheme's year and presents it as that scheme's answer.
+A blank is information. Four built-in notes explain why the schemes diverge,
+what is actually fixed by external records, and how to choose.
 
 ## Honesty about places
 
