@@ -1,0 +1,921 @@
+/* The Jarrell Codex — offline-capable study reader.
+   MPL-2.0. Data credits in the About panel. */
+'use strict';
+
+const D = 'data/';
+const S = {
+  books: [], names: {}, bookIx: {},
+  morph: {}, chron: null, order: null,
+  place: null, person: null, event: null, dictIx: null,
+  lex: {}, conc: {}, idx: {},
+  book: 'Jhn', ch: 3,
+  tx: 'KJV', scheme: 'jones', showOrig: true, pron: 'erasmian'
+};
+const TX = {
+  KJV: 'King James Version (1769)',
+  ASV: 'American Standard Version (1901)',
+  YLT: "Young's Literal Translation (1862/98)",
+  Darby: 'Darby Translation (1890)'
+};
+const $ = s => document.querySelector(s);
+const esc = t => String(t == null ? '' : t)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;');
+
+/* ---------------------------------------------------------------- fetching */
+const memo = new Map();
+async function get(path) {
+  if (memo.has(path)) return memo.get(path);
+  const p = fetch(D + path).then(r => {
+    if (!r.ok) throw new Error(path + ' ' + r.status);
+    return r.json();
+  }).catch(e => { memo.delete(path); throw e; });
+  memo.set(path, p);
+  return p;
+}
+const bucket = s => {
+  const m = /^([HGA])(\d+)/.exec(s || '');
+  return m ? m[1] + ('0000' + m[2]).slice(-4).slice(0, 2) : 'XX';
+};
+const shard2 = t => { const k = (t || '').replace(/[^a-z]/g, '').slice(0, 2);
+                      return k ? (k + 'zz').slice(0, 2) : 'xx'; };
+
+async function lex(strongs) {
+  const b = bucket(strongs);
+  if (!S.lex[b]) { try { S.lex[b] = await get(`lex/${b}.json`); }
+                   catch { S.lex[b] = {}; } }
+  return S.lex[b][strongs] || null;
+}
+async function conc(strongs) {
+  const b = bucket(strongs);
+  if (!S.conc[b]) { try { S.conc[b] = await get(`conc/${b}.json`); }
+                    catch { S.conc[b] = {}; } }
+  return S.conc[b][strongs] || null;
+}
+async function idx(kind, term) {
+  const key = kind + '/' + shard2(term);
+  if (!S.idx[key]) { try { S.idx[key] = await get(`idx/${key}.json`); }
+                     catch { S.idx[key] = {}; } }
+  return S.idx[key][term] || null;
+}
+const lazy = {
+  place: () => S.place || get('place.json').then(d => S.place = d),
+  person: () => S.person || get('person.json').then(d => S.person = d),
+  event: () => S.event || get('event.json').then(d => S.event = d),
+  dictIx: () => S.dictIx || get('dict_index.json').then(d => S.dictIx = d)
+};
+
+/* ------------------------------------------------------------- references */
+function refLabel(vk) {
+  const p = String(vk).split('.');
+  const nm = S.names[p[0]];
+  return (nm ? nm[1] : p[0]) + ' ' + (p[1] || '') + (p[2] ? ':' + p[2] : '');
+}
+function parseRef(text) {
+  const m = /^\s*((?:[1-3]|i{1,3}|first|second|third)?\s*[a-z. ]+?)\s*(\d+)?(?:\s*[:.]\s*(\d+))?\s*$/i
+    .exec(text || '');
+  if (!m) return null;
+  const want = m[1].toLowerCase().replace(/[.\s]+/g, ' ').trim();
+  let hit = null;
+  for (const code in S.names) {
+    for (const n of S.names[code]) {
+      const c = n.toLowerCase().replace(/[.\s]+/g, ' ').trim();
+      if (c === want) { hit = code; break; }
+      if (!hit && c.startsWith(want) && want.length >= 3) hit = code;
+    }
+    if (hit === code) break;
+  }
+  if (!hit) return null;
+  return { book: hit, ch: m[2] ? +m[2] : 1, v: m[3] ? +m[3] : null };
+}
+
+/* ------------------------------------------------------------- morphology */
+function parseMorph(code) {
+  if (!code) return null;
+  const raw = S.morph[code];
+  if (raw) return raw.split(';').map(s => s.trim()).filter(Boolean);
+  return null;
+}
+function roleOf(code) {
+  const p = parseMorph(code);
+  if (!p) return null;
+  const f = p.find(x => /^Function=/.test(x));
+  return f ? f.split('=')[1].trim().toLowerCase() : null;
+}
+
+/* ------------------------------------------------- Greek pronunciation */
+const PRON = {
+  erasmian: 'Erasmian — the classroom convention in most English-speaking seminaries. Not how any native speaker ever spoke, but it keeps the letters distinct, which is why it is taught.',
+  modern: 'Modern Greek — how the text is read aloud in Greece today, and in the Greek Orthodox Church. β is "v", αι is "e", οι and υ and ει all collapse to "ee".',
+  koine: 'Reconstructed Koine — scholars’ best estimate of first-century pronunciation, built from spelling mistakes in papyri. Sits between the other two.'
+};
+const PRON_MAP = {
+  modern: [[/ai/g,'e'],[/oi/g,'i'],[/ei/g,'i'],[/ou/g,'u'],[/eu/g,'ev'],
+           [/au/g,'av'],[/b/g,'v'],[/\bth/g,'th'],[/y/g,'i'],[/ē/g,'i'],[/ō/g,'o']],
+  koine: [[/ai/g,'e'],[/oi/g,'y'],[/ei/g,'i'],[/ou/g,'u'],[/b/g,'b'],[/ē/g,'ē']],
+  erasmian: []
+};
+function pronounce(tr, langTag) {
+  if (langTag !== 'G' || S.pron === 'erasmian') return tr;
+  let out = String(tr);
+  for (const [re, rep] of PRON_MAP[S.pron] || []) out = out.replace(re, rep);
+  return out;
+}
+
+/* ============================================================ the reader */
+let CH = null;                       // chapter currently rendered
+
+async function openChapter(book, ch, scrollToVerse) {
+  const meta = S.bookIx[book];
+  if (!meta) return;
+  ch = Math.max(1, Math.min(ch | 0 || 1, meta.chapters));
+  S.book = book; S.ch = ch;
+  $('#ref').textContent = refLabel(book + '.' + ch);
+  $('#view').innerHTML = '<p class="load">Loading…</p>';
+  let d;
+  try { d = await get(`ch/${book}.${ch}.json`); }
+  catch {
+    $('#view').innerHTML = `<p class="load">That chapter would not load.
+      If you are offline, chapters you have already opened still work.</p>`;
+    return;
+  }
+  CH = d;
+  renderChapter(scrollToVerse);
+}
+
+function renderChapter(scrollToVerse) {
+  if (!CH) return;
+  const d = CH, out = [];
+  const rtl = d.v.some(v => (v.t || []).some(t => t[4] === 'H'));
+  out.push(`<h1 style="font-size:1.35rem;margin:6px 0 2px">${esc(refLabel(d.b + '.' + d.c))}</h1>`);
+  out.push(`<p class="ot" style="margin:0 0 14px">${rtl ? 'Hebrew / Aramaic' : 'Greek'}
+    &middot; ${esc(TX[S.tx] || S.tx)}</p>`);
+
+  d.v.forEach((v, vi) => {
+    out.push(`<div class="v" id="v${v.n}">`);
+    let para = false;
+    if (S.showOrig && v.t && v.t.length) {
+      const lang = v.t[0][4] === 'H' ? 'heb' : 'grk';
+      out.push(`<div class="orig"${lang === 'heb' ? ' dir="rtl"' : ''}>`);
+      v.t.forEach((t, ti) => {
+        const role = (v.sr || {})[String(t[0])] || '';
+        const cls = 'w ' + lang + (role === 'verb' ? ' role-verb' : '');
+        // the source glues a pilcrow to the last word of a paragraph
+        const face = String(t[1]).replace(/\u00b6/g, '');
+        if (/\u00b6/.test(t[1])) para = true;
+        out.push(`<button class="${cls}" data-v="${vi}" data-t="${ti}"
+          aria-label="${esc(face)}, ${esc(t[3] || '')}">${esc(face)}</button>`);
+      });
+      out.push('</div>');
+    }
+    const txt = (v.x || {})[S.tx] || (v.x || {}).KJV || '';
+    out.push(`<div class="eng"><span class="vnum">${v.n}</span>${esc(txt)}</div>`);
+
+    const ch = [];
+    (v.p || []).forEach((p, i) => ch.push(
+      `<button class="chip place" data-k="place" data-v="${vi}" data-i="${i}">◆ ${esc(p[0])}</button>`));
+    (v.pe || []).forEach((p, i) => ch.push(
+      `<button class="chip person" data-k="person" data-v="${vi}" data-i="${i}">${esc(p)}</button>`));
+    (v.ev || []).forEach((e, i) => ch.push(
+      `<button class="chip event" data-k="event" data-v="${vi}" data-i="${i}">⧖ ${esc(e[1])}</button>`));
+    if ((v.nt || []).length) ch.push(
+      `<button class="chip note" data-k="note" data-v="${vi}">✎ ${v.nt.length} note${v.nt.length > 1 ? 's' : ''}</button>`);
+    if ((v.xr || []).length) ch.push(
+      `<button class="chip xr" data-k="xref" data-v="${vi}">⇄ ${v.xr.length} cross-ref${v.xr.length > 1 ? 's' : ''}</button>`);
+    if (ch.length) out.push(`<div class="chips">${ch.join('')}</div>`);
+    out.push('</div>');
+    if (para) out.push('<div class="para" aria-hidden="true"></div>');
+  });
+
+  const meta = S.bookIx[d.b];
+  out.push(`<div style="display:flex;gap:10px;margin:22px 0 0">
+    ${d.c > 1 ? `<button class="chip" data-nav="prev" style="flex:1;justify-content:center;min-height:${44}px">← ${esc(refLabel(d.b + '.' + (d.c - 1)))}</button>` : ''}
+    ${d.c < meta.chapters ? `<button class="chip" data-nav="next" style="flex:1;justify-content:center;min-height:44px">${esc(refLabel(d.b + '.' + (d.c + 1)))} →</button>` : ''}
+  </div>`);
+  out.push(footer());
+  $('#view').innerHTML = out.join('');
+  if (scrollToVerse) {
+    const el = $('#v' + scrollToVerse);
+    if (el) el.scrollIntoView({ block: 'center' });
+  } else window.scrollTo(0, 0);
+}
+
+function footer() {
+  return `<div class="foot">
+    Original-language text and parsing: STEPBible TAHOT / TAGNT (CC BY 4.0).
+    Lexicons: Brown-Driver-Briggs, Thayer, Abbott-Smith, Liddell-Scott-Jones.
+    Places: OpenBible.info. People, events and dictionary: Theographic Bible
+    Metadata (Easton's). Translation notes: unfoldingWord (CC BY-SA 4.0).
+    Cross-references: Treasury of Scripture Knowledge via OpenBible.
+    Translations are public domain.
+    <button data-go="about" style="color:var(--accent);padding:8px 0;display:block">
+      Full sources, licences, and how to read the chronologies →</button>
+  </div>`;
+}
+
+/* ============================================================== the sheet */
+function sheet(html) {
+  $('#sheet').innerHTML =
+    '<div class="sheet-top"><div class="grab"></div>' +
+    '<button class="sheet-x" data-close="1" aria-label="Close">\u2715</button></div>' + html;
+  $('#sheet').classList.add('open');
+  $('#scrim').classList.add('open');
+  $('#sheet').scrollTop = 0;
+}
+function closeSheet() {
+  $('#sheet').classList.remove('open');
+  $('#scrim').classList.remove('open');
+}
+
+/* -------------------------------------------------------- word study */
+async function wordSheet(vi, ti) {
+  const v = CH.v[vi], t = v.t[ti];
+  const lang = t[4] === 'H' ? 'heb' : 'grk';
+  const langName = t[4] === 'H' ? 'Hebrew / Aramaic' : 'Greek';
+  const o = [];
+  o.push(`<p class="lbl">${esc(refLabel(CH.b + '.' + CH.c + '.' + v.n))} &middot; word ${t[0]} &middot; ${langName}</p>`);
+  o.push(`<div class="hw"><span class="big ${lang}">${esc(String(t[1]).replace(/\u00b6/g, ''))}</span>
+    <span class="tr">${esc(pronounce(t[2], t[4]))}</span></div>`);
+  if (t[3]) o.push(`<p class="de" style="font-weight:600">“${esc(t[3])}”</p>`);
+  const role = (v.sr || {})[String(t[0])];
+  if (role) o.push(`<p class="oc">role in the clause: ${esc(role)}</p>`);
+  if (t[4] === 'G' && S.pron !== 'erasmian')
+    o.push(`<p class="oc">pronunciation: ${esc(S.pron)}</p>`);
+
+  const parts = t[5] || [];
+  if (parts.length > 1)
+    o.push(`<p class="lbl" style="margin:16px 0 0">${parts.length} parts — this one
+      word carries a prefix, root and ending, each with its own number</p>`);
+
+  o.push('<div id="morphs">');
+  parts.forEach((m, mi) => {
+    const g = parseMorph(m[1]);
+    o.push(`<div class="mo"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="sn">${esc(m[2] || m[0])}</span>
+      ${m[0] !== m[2] ? `<span class="ot">extended ${esc(m[0])}</span>` : ''}
+      ${m[1] ? `<span class="ot">${esc(m[1])}</span>` : ''}</div>
+      ${g ? `<p class="pa">${g.map(esc).join(' &middot; ')}</p>`
+          : (m[1] ? '<p class="pa">grammar code not in the table</p>' : '')}
+      <div id="lx${mi}"></div></div>`);
+  });
+  o.push('</div>');
+  sheet(o.join(''));
+
+  for (let mi = 0; mi < parts.length; mi++) {
+    const m = parts[mi], simple = m[2] || m[0];
+    const el = document.getElementById('lx' + mi);
+    if (!el) continue;
+    const [e, cc] = await Promise.all([lex(m[0]).then(x => x || lex(simple)), conc(simple)]);
+    const bits = [];
+    if (e) {
+      bits.push(`<p class="de"><b>${esc(e[2] || '')}</b></p>`);
+      if (e[0]) bits.push(`<p class="pa">${esc(e[0])} &middot; <i>${esc(e[1] || '')}</i></p>`);
+      if (e[3]) {
+        const full = String(e[3]);
+        const short = full.length > 240;
+        bits.push(`<p class="de" id="def${mi}">${esc(short ? full.slice(0, 240) + '…' : full)}</p>`);
+        if (short) bits.push(`<button class="more" data-expand="${mi}"
+          data-full="${esc(full)}">Read the whole entry →</button>`);
+      }
+    } else bits.push('<p class="pa">No lexicon entry under this number.</p>');
+    if (cc) bits.push(`<button class="more" data-conc="${esc(simple)}">
+      Concordance: ${cc[0].toLocaleString()} verse${cc[0] === 1 ? '' : 's'} →</button>`);
+    bits.push(`<button class="more" data-dict="${esc((e && e[2]) || t[3] || '')}">
+      Look up in the Bible dictionary →</button>`);
+    el.innerHTML = bits.join('');
+  }
+}
+
+/* -------------------------------------------------------- concordance */
+async function concSheet(strongs) {
+  const [cc, e] = await Promise.all([conc(strongs), lex(strongs)]);
+  if (!cc) return sheet('<p class="load">Nothing indexed under that number.</p>');
+  const shown = cc[1].length;
+  const o = [`<p class="lbl">Concordance &middot; ${esc(strongs)}</p>`];
+  if (e) o.push(`<div class="hw"><span class="big ${strongs[0] === 'H' ? 'heb' : 'grk'}">${esc(e[0])}</span>
+    <span class="tr">${esc(e[1] || '')}</span></div><p class="de"><b>${esc(e[2] || '')}</b></p>`);
+  o.push(`<p class="oc">${cc[0].toLocaleString()} verses contain this word${
+    shown < cc[0] ? ` &middot; showing the first ${shown.toLocaleString()}` : ''}</p>`);
+  o.push('<div style="margin-top:12px">');
+  cc[1].forEach(vk => o.push(
+    `<button class="hit" data-ref="${esc(vk)}"><span class="r">${esc(refLabel(vk))}</span></button>`));
+  o.push('</div>');
+  sheet(o.join(''));
+}
+
+/* --------------------------------------------------------- dictionary */
+async function dictSheet(term) {
+  await lazy.dictIx();
+  const key = String(term || '').trim().toLowerCase().replace(/[^a-z' ]/g, '');
+  let hits = S.dictIx[key];
+  if (!hits) {
+    const first = key.split(' ')[0];
+    hits = S.dictIx[first] || null;
+    if (!hits) {
+      const near = Object.keys(S.dictIx)
+        .filter(k => first.length > 2 && k.startsWith(first.slice(0, Math.max(3, first.length - 1))))
+        .slice(0, 25);
+      if (!near.length) return sheet(
+        `<p class="lbl">Bible dictionary</p><p class="de">No entry for
+         “${esc(term)}”. The dictionary covers names, places and
+         topics rather than every English word.</p>`);
+      return sheet(`<p class="lbl">Bible dictionary</p>
+        <p class="de">Nothing filed under “${esc(term)}”. Did you mean:</p>
+        <div style="margin-top:10px">${near.map(k =>
+          `<button class="hit" data-dict="${esc(k)}"><span class="r">${esc(k)}</span></button>`
+        ).join('')}</div>`);
+    }
+  }
+  const o = [`<p class="lbl">Bible dictionary</p>`];
+  for (const [eid, b, label] of hits.slice(0, 8)) {
+    let sh;
+    try { sh = await get(`dict/${b}.json`); } catch { continue; }
+    const e = sh[eid];
+    if (!e) continue;
+    o.push(`<div class="mo"><div class="hw"><span style="font-size:1.15rem;font-weight:600">${esc(label)}</span>
+      ${e.num > 1 ? `<span class="ot">sense ${e.num}</span>` : ''}</div>
+      <p class="de" style="white-space:pre-wrap">${esc(e.body || '')}</p>
+      <p class="oc">${esc(e.src || 'Easton’s Bible Dictionary')}</p></div>`);
+  }
+  sheet(o.join('') || '<p class="load">Entry body missing.</p>');
+}
+
+/* ------------------------------------------------- place / person / event */
+async function placeSheet(vi, i) {
+  const p = (CH.v[vi].p || [])[i]; if (!p) return;
+  await lazy.place();
+  const d = (S.place || {})[p[0]] || {};
+  const lat = d.lat != null ? d.lat : p[2], lon = d.lon != null ? d.lon : p[3];
+  const STAT = {
+    identified: ['Identified', 'The modern site is agreed on by the people who study this.'],
+    disputed:   ['Disputed', 'Scholars propose more than one modern site. The coordinates are one candidate, not a settled answer.'],
+    region:     ['Region', 'A district or territory rather than a single spot. The coordinates are a centre point.'],
+    unknown:    ['Not located', 'Named in the text, but nobody knows where it was.']
+  };
+  const st = STAT[d.status || p[1]] || STAT.unknown;
+  const o = [`<p class="lbl">Place &middot; ${esc(refLabel(CH.b + '.' + CH.c + '.' + CH.v[vi].n))}</p>`];
+  o.push(`<div class="hw"><span style="font-size:1.4rem;font-weight:600">${esc(p[0])}</span></div>`);
+  if (d.modern) o.push(`<p class="de">Today: <b>${esc(d.modern)}</b></p>`);
+  o.push(`<p class="pa"><b>${esc(st[0])}.</b> ${esc(st[1])}</p>`);
+  if (d.types) o.push(`<p class="pa">Type: ${esc(String(d.types).replace(/[,;]+/g, ', '))}</p>`);
+  if (d.desc) o.push(`<p class="de">${esc(d.desc)}</p>`);
+  if (lat && lon) {
+    o.push(`<p class="oc">${(+lat).toFixed(4)}\u00b0, ${(+lon).toFixed(4)}\u00b0</p>`);
+    // OpenBible's score saturates at 500 for an undisputed site, so the
+    // number only says something when the identification is contested.
+    const st2 = d.status || p[1];
+    if (st2 === 'disputed' && d.conf != null) {
+      o.push(`<p class="pa">${d.conf < 0
+        ? 'The sources that weighed in lean <b>against</b> this location'
+        : `Weight of opinion for this site: <b>${d.conf}</b>`}${
+        d.votes > 1 ? `, out of ${d.votes} proposals considered` : ''}. The rival
+        sites carry the rest of the vote.</p>`);
+    } else if (st2 === 'identified') {
+      o.push('<p class="pa">The sources are unanimous on this one.</p>');
+    }
+    o.push(`<p style="margin-top:10px"><a class="more" style="display:inline-block"
+      target="_blank" rel="noopener"
+      href="https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=9/${lat}/${lon}">Open the map ↗</a></p>`);
+  } else o.push('<p class="oc">No coordinates — the site is unlocated.</p>');
+  if (d.n) {
+    o.push(`<p class="lbl" style="margin:18px 0 6px">Named in ${d.n} verse${d.n === 1 ? '' : 's'}</p>`);
+    (d.refs || []).slice(0, 120).forEach(vk => o.push(
+      `<button class="hit" data-ref="${esc(vk)}"><span class="r">${esc(refLabel(vk))}</span></button>`));
+  }
+  o.push(`<button class="more" data-dict="${esc(p[0])}">Dictionary entry for ${esc(p[0])} →</button>`);
+  sheet(o.join(''));
+}
+
+async function personSheet(vi, i) {
+  const name = (CH.v[vi].pe || [])[i]; if (!name) return;
+  await lazy.person();
+  const d = (S.person || {})[name] || {};
+  const senses = [d, ...(d.also || [])].filter(x => x && (x.n || x.title));
+  const o = [`<p class="lbl">Person &middot; ${esc(refLabel(CH.b + '.' + CH.c + '.' + CH.v[vi].n))}</p>`];
+  o.push(`<div class="hw"><span style="font-size:1.4rem;font-weight:600">${esc(name)}</span></div>`);
+  if (senses.length > 1) o.push(`<p class="pa">${senses.length} different people in the
+    text carry this name. They are listed separately below.</p>`);
+  senses.forEach((s, si) => {
+    o.push('<div class="mo">');
+    if (senses.length > 1) o.push(`<p class="lbl">#${si + 1}</p>`);
+    if (s.title) o.push(`<p class="de">${esc(s.title)}</p>`);
+    const bio = [];
+    if (s.sex) bio.push(esc(s.sex));
+    if (s.born != null) bio.push('born ' + esc(s.born));
+    if (s.died != null) bio.push('died ' + esc(s.died));
+    if (bio.length) o.push(`<p class="oc">${bio.join(' &middot; ')}</p>`);
+    if (s.n) {
+      o.push(`<p class="oc">named in ${s.n} verse${s.n === 1 ? '' : 's'}</p>`);
+      (s.refs || []).slice(0, 80).forEach(vk => o.push(
+        `<button class="hit" data-ref="${esc(vk)}"><span class="r">${esc(refLabel(vk))}</span></button>`));
+    }
+    o.push('</div>');
+  });
+  o.push(`<button class="more" data-dict="${esc(name)}">Dictionary entry for ${esc(name)} →</button>`);
+  sheet(o.join(''));
+}
+
+function yearLabel(y) {
+  if (y == null) return null;
+  return y < 0 ? Math.abs(y) + ' BC' : y + ' AD';
+}
+async function eventSheet(vi, i) {
+  const ev = (CH.v[vi].ev || [])[i]; if (!ev) return;
+  await lazy.event();
+  const d = (S.event || {})[String(ev[0])] || {};
+  const o = [`<p class="lbl">Event &middot; ${esc(refLabel(CH.b + '.' + CH.c + '.' + CH.v[vi].n))}</p>`];
+  o.push(`<div class="hw"><span style="font-size:1.3rem;font-weight:600">${esc(ev[1])}</span></div>`);
+  if (d.dur) o.push(`<p class="pa">lasted about ${esc(d.dur)}</p>`);
+  o.push(`<p class="lbl" style="margin:18px 0 4px">When it happened, by scheme</p>`);
+  o.push(`<p class="pa" style="margin:0 0 8px">The schemes disagree. That is not a
+    bug in this app — it is the actual state of the field.</p>`);
+  (S.chron.schemes || []).forEach(s => {
+    const dt = (d.dates || {})[s.scheme_id];
+    const y = dt ? yearLabel(dt[0]) : null;
+    const end = dt && dt[1] != null && dt[1] !== dt[0] ? yearLabel(dt[1]) : null;
+    o.push(`<div class="row${s.scheme_id === S.scheme ? ' sel' : ''}">
+      <span>${esc(s.name)}</span>
+      <span class="y${y ? '' : ' none'}">${y ? esc(y + (end ? ' – ' + end : '')) : 'no date in this scheme'}</span></div>`);
+  });
+  if ((d.refs || []).length) {
+    o.push(`<p class="lbl" style="margin:18px 0 6px">Passages</p>`);
+    d.refs.slice(0, 150).forEach(vk => o.push(
+      `<button class="hit" data-ref="${esc(vk)}"><span class="r">${esc(refLabel(vk))}</span></button>`));
+  }
+  o.push(`<button class="more" data-go="chrono">See it on the timeline →</button>`);
+  sheet(o.join(''));
+}
+
+/* --------------------------------------------------- notes / commentary */
+function noteSheet(vi) {
+  const v = CH.v[vi], ns = v.nt || [];
+  const o = [`<p class="lbl">Notes on ${esc(refLabel(CH.b + '.' + CH.c + '.' + v.n))}</p>`];
+  o.push(`<p class="pa" style="margin:0 0 14px">Verse-by-verse notes on wording,
+    idiom, grammar and cultural background, written for translators — which
+    makes them unusually plain about what the original actually says.</p>`);
+  ns.forEach(n => {
+    o.push('<div class="note-b">');
+    if (n[0]) o.push(`<p class="note-q" style="margin:0 0 4px">${esc(n[0])}</p>`);
+    o.push(md(n[2] || ''));
+    if (n[1]) o.push(`<p class="oc" style="margin-top:6px">${esc(n[1])}</p>`);
+    o.push('</div>');
+  });
+  o.push(`<p class="oc">unfoldingWord Translation Notes, CC BY-SA 4.0</p>`);
+  sheet(o.join(''));
+}
+function md(t) {
+  return esc(t)
+    .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+    .replace(/\[([^\]]+)\]/g, '<i>$1</i>')
+    .replace(/\n/g, '<br>');
+}
+
+function xrefSheet(vi) {
+  const v = CH.v[vi], xs = v.xr || [];
+  const top = xs[0] ? xs[0][1] : 1;
+  const o = [`<p class="lbl">Cross-references from ${esc(refLabel(CH.b + '.' + CH.c + '.' + v.n))}</p>`];
+  o.push(`<p class="pa" style="margin:0 0 14px">Ranked by how strongly readers and
+    editors have linked the two passages. The bar is relative weight, not certainty.</p>`);
+  xs.forEach(x => {
+    const pct = Math.max(6, Math.round(100 * x[1] / (top || 1)));
+    o.push(`<button class="hit" data-ref="${esc(x[0])}">
+      <span class="r">${esc(refLabel(x[0]))}</span>
+      <span style="display:block;height:3px;margin-top:6px;border-radius:2px;
+        background:var(--accent);width:${pct}%;opacity:.55"></span></button>`);
+  });
+  o.push(`<p class="oc" style="margin-top:12px">Treasury of Scripture Knowledge and
+    related sets, aggregated by OpenBible.info</p>`);
+  sheet(o.join(''));
+}
+
+/* ============================================================== searching */
+let SQ = '', STAB = 'verse';
+const tokens = q => (q || '').toLowerCase().split(/[^a-z']+/)
+  .map(t => t.replace(/^'+|'+$/g, '')).filter(t => t.length > 1);
+
+async function runSearch(q, tab) {
+  SQ = q; STAB = tab || STAB;
+  const o = [];
+  o.push(`<h1 style="font-size:1.3rem;margin:6px 0 12px">Search</h1>`);
+  o.push(`<input type="search" id="q" value="${esc(q)}" enterkeyhint="search"
+    placeholder="a word, a phrase, or John 3:16" autocomplete="off"
+    autocorrect="off" autocapitalize="none" spellcheck="false">`);
+  o.push(`<div class="tabs" style="margin-top:12px">${
+    [['verse', 'Verses'], ['word', 'Original words'], ['dict', 'Dictionary'], ['note', 'Notes']]
+      .map(([k, l]) => `<button data-tab="${k}" class="${STAB === k ? 'on' : ''}">${l}</button>`).join('')
+  }</div>`);
+  o.push('<div id="results"></div>');
+  o.push(footer());
+  $('#view').innerHTML = o.join('');
+  const r = parseRef(q);
+  if (r) $('#results').insertAdjacentHTML('afterbegin',
+    `<button class="hit" data-ref="${esc(r.book + '.' + r.ch + (r.v ? '.' + r.v : ''))}"
+      style="border:1px solid var(--accent);border-radius:10px;padding:12px;margin-bottom:14px">
+      <span class="r">Go to ${esc(refLabel(r.book + '.' + r.ch + (r.v ? '.' + r.v : '')))}</span>
+      <span class="t">That looks like a reference.</span></button>`);
+  const ts = tokens(q);
+  if (!ts.length) return;
+  const box = $('#results');
+  box.insertAdjacentHTML('beforeend', '<p class="load">Searching…</p>');
+  try {
+    if (STAB === 'verse') await searchRefs('w', ts, box, 'in the King James text');
+    else if (STAB === 'note') await searchRefs('n', ts, box, 'in the translation notes');
+    else if (STAB === 'word') await searchWords(ts, box);
+    else await searchDict(ts, box);
+  } catch (e) {
+    box.innerHTML = `<p class="load">Search failed: ${esc(e.message)}</p>`;
+  }
+}
+
+async function searchRefs(kind, ts, box, where) {
+  const lists = await Promise.all(ts.map(t => idx(kind, t)));
+  const missing = ts.filter((t, i) => !lists[i]);
+  const found = lists.filter(Boolean);
+  if (!found.length) {
+    box.querySelector('.load').outerHTML =
+      `<p class="load">No match ${esc(where)} for ${esc(ts.join(', '))}.</p>`;
+    return;
+  }
+  let set = new Set(found[0][1]);
+  for (let i = 1; i < found.length; i++) {
+    const s = new Set(found[i][1]);
+    set = new Set([...set].filter(x => s.has(x)));
+  }
+  const refs = [...set].sort(byRef);
+  const capped = found.some(f => f[1].length < f[0]);
+  const o = [];
+  o.push(`<p class="oc">${refs.length.toLocaleString()} verse${refs.length === 1 ? '' : 's'}
+    ${ts.length > 1 ? 'contain all of these words ' : ''}${esc(where)}${
+    capped ? ' &middot; very common words are capped, so a rare word gives better results' : ''}</p>`);
+  if (missing.length) o.push(`<p class="oc">not indexed: ${esc(missing.join(', '))}</p>`);
+  o.push('<div id="hits" style="margin-top:10px">');
+  refs.slice(0, 300).forEach(vk => o.push(
+    `<button class="hit" data-ref="${esc(vk)}"><span class="r">${esc(refLabel(vk))}</span>
+     <span class="t" data-snip="${esc(vk)}"></span></button>`));
+  o.push('</div>');
+  if (refs.length > 300) o.push(`<p class="oc">showing the first 300</p>`);
+  box.querySelector('.load').outerHTML = o.join('');
+  snippets(refs.slice(0, 14), ts);
+}
+function byRef(a, b) {
+  const pa = a.split('.'), pb = b.split('.');
+  const ia = S.bookIx[pa[0]], ib = S.bookIx[pb[0]];
+  return (ia ? ia.n : 999) - (ib ? ib.n : 999) || (+pa[1] - +pb[1]) || (+pa[2] - +pb[2]);
+}
+async function snippets(refs, ts) {
+  const byCh = {};
+  refs.forEach(vk => {
+    const p = vk.split('.'), k = p[0] + '.' + p[1];
+    if (!byCh[k]) byCh[k] = [];
+    byCh[k].push(vk);
+  });
+  for (const key in byCh) {
+    let d; try { d = await get(`ch/${key}.json`); } catch { continue; }
+    byCh[key].forEach(vk => {
+      const n = +vk.split('.')[2];
+      const v = d.v.find(x => x.n === n); if (!v) return;
+      let txt = (v.x || {})[S.tx] || (v.x || {}).KJV || '';
+      const el = document.querySelector(`[data-snip="${vk}"]`); if (!el) return;
+      let html = esc(txt);
+      ts.forEach(t => { html = html.replace(new RegExp(`\\b(${t})`, 'gi'), '<b>$1</b>'); });
+      el.innerHTML = html;
+    });
+  }
+}
+
+async function searchWords(ts, box) {
+  const lists = await Promise.all(ts.map(t => idx('g', t)));
+  const hits = [];
+  lists.forEach(l => (l || []).forEach(([s, n]) => hits.push([s, n])));
+  if (!hits.length) {
+    box.querySelector('.load').outerHTML =
+      `<p class="load">No original-language word is glossed with ${esc(ts.join(', '))}.</p>`;
+    return;
+  }
+  hits.sort((a, b) => b[1] - a[1]);
+  const o = [`<p class="oc">Original-language words translated with
+    “${esc(ts.join(' '))}”, commonest first</p><div style="margin-top:10px">`];
+  const top = hits.slice(0, 40);
+  const ents = await Promise.all(top.map(h => lex(h[0])));
+  top.forEach(([s, n], i) => {
+    const e = ents[i];
+    o.push(`<button class="hit" data-conc="${esc(s)}">
+      <span class="r">${esc(s)}</span>
+      <span class="t">${e ? `<span class="${s[0] === 'H' ? 'heb' : 'grk'}"
+        style="font-size:1.1rem">${esc(e[0])}</span> <i>${esc(e[1] || '')}</i> — ${esc(e[2] || '')}` : ''}
+        <span class="ot"> &middot; ${n} time${n === 1 ? '' : 's'}</span></span></button>`);
+  });
+  o.push('</div>');
+  box.querySelector('.load').outerHTML = o.join('');
+}
+
+async function searchDict(ts, box) {
+  await lazy.dictIx();
+  const q = ts.join(' ');
+  const keys = Object.keys(S.dictIx);
+  const exact = keys.filter(k => k === q);
+  const pre = keys.filter(k => k !== q && k.startsWith(q)).sort();
+  const sub = keys.filter(k => !k.startsWith(q) && k.includes(q)).sort();
+  const all = [...exact, ...pre, ...sub].slice(0, 120);
+  if (!all.length) {
+    box.querySelector('.load').outerHTML =
+      `<p class="load">No dictionary headword contains “${esc(q)}”.</p>`;
+    return;
+  }
+  const o = [`<p class="oc">${all.length} dictionary headword${all.length === 1 ? '' : 's'}</p>
+    <div style="margin-top:10px">`];
+  all.forEach(k => {
+    const label = (S.dictIx[k][0] || [])[2] || k;
+    o.push(`<button class="hit" data-dict="${esc(k)}"><span class="r">${esc(label)}</span>
+      ${S.dictIx[k].length > 1 ? `<span class="t">${S.dictIx[k].length} senses</span>` : ''}</button>`);
+  });
+  o.push('</div>');
+  box.querySelector('.load').outerHTML = o.join('');
+}
+
+/* ============================================================= chronology */
+function spanLabel(s) {
+  const nm = S.names[s[0]] ? S.names[s[0]][1] : s[0];
+  return nm + ' ' + s[1] + ':' + (s[2] === s[3] ? s[2] : s[2] + '–' + s[3]);
+}
+async function chronoView() {
+  await Promise.all([lazy.event(), S.order || get('chrono_order.json').then(d => S.order = d)]);
+  const sch = (S.chron.schemes || []).find(s => s.scheme_id === S.scheme) || {};
+  const ord = (S.order.order || {})[S.scheme] || { dated: [], undated: [] };
+  const o = [];
+  o.push(`<h1 style="font-size:1.3rem;margin:6px 0 2px">The story in order</h1>`);
+  o.push(`<p class="ot" style="margin:0 0 14px">${ord.dated.length} dated events
+    &middot; ${S.order.order ? Object.keys(S.order.order).length : 0} schemes to choose from</p>`);
+  o.push(`<label class="lbl" for="schemeSel">Chronology</label>
+    <select id="schemeSel" style="width:100%;margin-bottom:10px">${
+      (S.chron.schemes || []).map(s => `<option value="${esc(s.scheme_id)}"
+        ${s.scheme_id === S.scheme ? 'selected' : ''}>${esc(s.name)}${
+        s.coverage === 'full' ? '' : ' — partial'}</option>`).join('')}</select>`);
+  if (sch.summary) o.push(`<p class="de" style="color:var(--ink-soft)">${esc(sch.summary)}</p>`);
+  if (sch.source) o.push(`<p class="oc">${esc(sch.source)}</p>`);
+
+  if (ord.dated.length < 50) {
+    o.push(`<div style="border:1px solid var(--warn);border-radius:10px;padding:12px;margin:14px 0">
+      <p class="de" style="margin:0"><b>This scheme only anchors ${ord.dated.length}
+      event${ord.dated.length === 1 ? '' : 's'}.</b> Its published work fixes a handful
+      of dates and leaves the rest to be worked out from them, so there is no full
+      ordering to show. The events below the dated ones are in the order the text
+      tells them, not in a date order this scheme would vouch for. For a complete
+      dated sequence, pick Floyd Nolen Jones.</p></div>`);
+  }
+  o.push(`<button class="more" data-go="about">Why do the schemes disagree? →</button>`);
+
+  const row = eid => {
+    const e = S.event[eid]; if (!e) return '';
+    const dt = (e.dates || {})[S.scheme];
+    const y = dt ? yearLabel(dt[0]) : null;
+    const end = dt && dt[1] != null && dt[1] !== dt[0] ? yearLabel(dt[1]) : null;
+    const sp = (S.order.spans || {})[eid] || [];
+    const first = sp[0];
+    return `<button class="hit" ${first ? `data-ref="${esc(first[0] + '.' + first[1] + '.' + first[2])}"` : ''}>
+      <span class="r">${y ? esc(y + (end ? ' – ' + end : '')) : '—'}</span>
+      <span class="t" style="color:var(--ink);font-size:1rem">${esc(e.title)}</span>
+      ${sp.length ? `<span class="t">${sp.slice(0, 4).map(s => esc(spanLabel(s))).join(' &middot; ')}${
+        sp.length > 4 ? ' &middot; +' + (sp.length - 4) + ' more' : ''}</span>` : ''}</button>`;
+  };
+  o.push(`<p class="lbl" style="margin:22px 0 6px">Dated in this scheme</p>`);
+  o.push(ord.dated.map(row).join('') || '<p class="pa">None.</p>');
+  if (ord.undated.length) {
+    o.push(`<p class="lbl" style="margin:22px 0 6px">Undated here — in narrative order</p>`);
+    o.push(ord.undated.map(row).join(''));
+  }
+  o.push(footer());
+  $('#view').innerHTML = o.join('');
+  window.scrollTo(0, 0);
+  $('#schemeSel').onchange = e => {
+    S.scheme = e.target.value; save(); chronoView();
+  };
+}
+
+/* ================================================================== about */
+function aboutView() {
+  const o = [];
+  o.push(`<h1 style="font-size:1.35rem;margin:6px 0 14px">About this Bible</h1>`);
+  o.push(`<p class="de">Every word of the Hebrew, Aramaic and Greek is tagged with its
+    dictionary number and its grammar. Tap any word to see its parts, what each part
+    means, and every other verse that uses it. Tap the markers under a verse for the
+    place, the people, the event, the translators’ notes, and the cross-references.
+    Nothing here costs anything and nothing here tracks you.</p>`);
+
+  o.push(`<p class="lbl" style="margin:24px 0 8px">Why the dates disagree</p>`);
+  (S.chron.notes || []).forEach(n => {
+    o.push(`<div class="mo"><p style="font-weight:600;margin:0 0 6px">${esc(n.heading)}</p>
+      <p class="de" style="margin:0;white-space:pre-wrap">${esc(n.body)}</p></div>`);
+  });
+  o.push(`<p class="lbl" style="margin:24px 0 8px">The schemes on offer</p>`);
+  (S.chron.schemes || []).forEach(s => {
+    o.push(`<div class="mo"><p style="font-weight:600;margin:0 0 6px">${esc(s.name)}
+      <span class="ot">${esc(s.coverage)}</span></p>
+      <p class="de" style="margin:0">${esc(s.summary || '')}</p>
+      ${s.source ? `<p class="oc">${esc(s.source)}</p>` : ''}</div>`);
+  });
+
+  o.push(`<p class="lbl" style="margin:24px 0 8px">Greek pronunciation</p>`);
+  o.push(`<p class="de">There is no single right answer, so all three are here.
+    Switch between them in Settings.</p>`);
+  Object.entries(PRON).forEach(([k, v]) => o.push(
+    `<div class="mo"><p style="font-weight:600;margin:0 0 6px;text-transform:capitalize">${esc(k)}</p>
+     <p class="de" style="margin:0">${esc(v)}</p></div>`));
+
+  o.push(`<p class="lbl" style="margin:24px 0 8px">Audio</p>`);
+  o.push(`<p class="de">Not here yet. Spoken-word recordings need a licence from the
+    people who made them, and that request is still outstanding. Everything else
+    works without it.</p>`);
+
+  o.push(`<p class="lbl" style="margin:24px 0 8px">Where all of this came from</p>`);
+  [['STEPBible — Tyndale House, Cambridge',
+    'TAHOT and TAGNT: the Hebrew and Greek text with a dictionary number and a grammar code on every word, including the separate numbers for prefixes and endings. CC BY 4.0.'],
+   ['Brown-Driver-Briggs, Thayer, Abbott-Smith, Liddell-Scott-Jones',
+    'The lexicon entries behind each number. Public domain, via STEPBible and the Perseus Digital Library.'],
+   ['OpenBible.info', 'Place coordinates with an honest confidence figure, and the cross-reference weights. CC BY 4.0.'],
+   ['Theographic Bible Metadata', 'People, events, and Easton’s Bible Dictionary. CC BY 4.0.'],
+   ['unfoldingWord', 'Translation Notes — verse-by-verse notes on wording, idiom and background. CC BY-SA 4.0.'],
+   ['MACULA', 'Syntactic and semantic annotation of the original text. CC BY 4.0.'],
+   ['King James, American Standard, Young’s Literal, Darby', 'English translations. All public domain.']
+  ].forEach(([t, b]) => o.push(
+    `<div class="mo"><p style="font-weight:600;margin:0 0 6px">${esc(t)}</p>
+     <p class="de" style="margin:0">${esc(b)}</p></div>`));
+
+  o.push(`<p class="lbl" style="margin:24px 0 8px">Licence</p>`);
+  o.push(`<p class="de">The code is MPL-2.0. The assembled data is CC BY-SA 4.0,
+    because unfoldingWord’s notes are share-alike and that carries. Take it,
+    copy it, hand it out. Source at
+    <a href="https://github.com/jebjarrell1974-debug/jarrell-codex">github.com/jebjarrell1974-debug/jarrell-codex</a>.</p>`);
+  o.push(`<p class="de" style="color:var(--ink-faint)">The Jarrell Codex.</p>`);
+  $('#view').innerHTML = o.join('');
+  window.scrollTo(0, 0);
+}
+
+/* ================================================= books, settings, router */
+function booksSheet() {
+  const o = [`<p class="lbl">Books</p>`];
+  ['OT', 'NT'].forEach(t => {
+    o.push(`<p class="lbl" style="margin:14px 0 8px">${t === 'OT' ? 'Old Testament' : 'New Testament'}</p>`);
+    o.push('<div class="blist">');
+    S.books.filter(b => b[2] === t).forEach(b => o.push(
+      `<button data-book="${esc(b[0])}">${esc(S.names[b[0]] ? S.names[b[0]][1] : b[0])}
+       <span class="ot">${b[3]}</span></button>`));
+    o.push('</div>');
+  });
+  sheet(o.join(''));
+}
+function chaptersSheet(book) {
+  const meta = S.bookIx[book];
+  const o = [`<p class="lbl">${esc(S.names[book] ? S.names[book][1] : book)} — ${meta.chapters} chapters</p>`,
+             '<div class="grid">'];
+  for (let i = 1; i <= meta.chapters; i++)
+    o.push(`<button data-ch="${i}" data-cbook="${esc(book)}">${i}</button>`);
+  o.push('</div>');
+  sheet(o.join(''));
+}
+function settingsSheet() {
+  const o = [`<p class="lbl">Settings</p>`];
+  o.push(`<label class="lbl" style="margin-top:12px" for="txSel">English translation</label>
+    <select id="txSel" style="width:100%">${Object.entries(TX).map(([k, v]) =>
+      `<option value="${k}" ${S.tx === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>`);
+  o.push(`<label class="lbl" style="margin-top:16px" for="prSel">Greek pronunciation</label>
+    <select id="prSel" style="width:100%">${Object.keys(PRON).map(k =>
+      `<option value="${k}" ${S.pron === k ? 'selected' : ''}>${k[0].toUpperCase() + k.slice(1)}</option>`).join('')}</select>
+    <p class="pa">${esc(PRON[S.pron])}</p>`);
+  o.push(`<label class="lbl" style="margin-top:16px" for="scSel">Chronology</label>
+    <select id="scSel" style="width:100%">${(S.chron.schemes || []).map(s =>
+      `<option value="${esc(s.scheme_id)}" ${s.scheme_id === S.scheme ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>`);
+  o.push(`<label class="lbl" style="margin-top:16px">Original language</label>
+    <button class="chip" id="origTgl" style="margin-top:4px">${S.showOrig ?
+      '✓ showing Hebrew / Greek' : 'hidden — English only'}</button>`);
+  o.push(`<button class="more" data-go="about" style="margin-top:22px">About, sources and licences →</button>`);
+  sheet(o.join(''));
+  $('#txSel').onchange = e => { S.tx = e.target.value; save(); renderChapter(); };
+  $('#prSel').onchange = e => { S.pron = e.target.value; save(); settingsSheet(); };
+  $('#scSel').onchange = e => { S.scheme = e.target.value; save(); };
+  $('#origTgl').onclick = () => { S.showOrig = !S.showOrig; save(); renderChapter(); settingsSheet(); };
+}
+
+function save() {
+  try {
+    localStorage.setItem('codex', JSON.stringify(
+      { tx: S.tx, scheme: S.scheme, pron: S.pron, showOrig: S.showOrig,
+        book: S.book, ch: S.ch }));
+  } catch { /* private mode, blocked storage — settings just don't persist */ }
+}
+function load() {
+  try {
+    const v = JSON.parse(localStorage.getItem('codex') || '{}');
+    if (v && typeof v === 'object') Object.assign(S, {
+      tx: TX[v.tx] ? v.tx : S.tx,
+      scheme: v.scheme || S.scheme,
+      pron: PRON[v.pron] ? v.pron : S.pron,
+      showOrig: v.showOrig !== false,
+      book: v.book || S.book, ch: v.ch || S.ch
+    });
+  } catch { /* ignore */ }
+}
+
+/* ================================================================= router */
+function go(hash, replace) {
+  if (location.hash === hash) route();
+  else if (replace) history.replaceState(null, '', hash), route();
+  else location.hash = hash;
+}
+function route() {
+  closeSheet();
+  const h = decodeURIComponent(location.hash.replace(/^#\/?/, ''));
+  $('#btnSearch').classList.toggle('on', h.startsWith('search'));
+  if (!h) { go('#/' + S.book + '.' + S.ch, true); return; }
+  if (h === 'chrono') { $('#ref').textContent = 'Chronology'; return chronoView(); }
+  if (h === 'about')  { $('#ref').textContent = 'About';      return aboutView(); }
+  if (h.startsWith('search')) {
+    const q = (h.split('?q=')[1] || '').replace(/\+/g, ' ');
+    $('#ref').textContent = 'Search';
+    return runSearch(q, STAB);
+  }
+  const p = h.split('.');
+  if (S.bookIx[p[0]]) return openChapter(p[0], +p[1] || 1, p[2] ? +p[2] : null);
+  go('#/' + S.book + '.' + S.ch, true);
+}
+
+/* ========================================================= event wiring */
+document.addEventListener('click', ev => {
+  const t = ev.target.closest('[data-close],[data-v][data-t],[data-k],[data-ref],[data-conc],[data-dict],[data-book],[data-ch],[data-nav],[data-go],[data-tab],[data-expand]');
+  if (!t) return;
+
+  if (t.dataset.close) return closeSheet();
+
+  if (t.dataset.expand != null) {
+    const p = document.getElementById('def' + t.dataset.expand);
+    if (p) { p.textContent = t.dataset.full; t.remove(); }
+    return;
+  }
+  if (t.dataset.t != null && t.dataset.v != null && t.classList.contains('w')) {
+    document.querySelectorAll('.w.sel').forEach(e => e.classList.remove('sel'));
+    t.classList.add('sel');
+    return void wordSheet(+t.dataset.v, +t.dataset.t);
+  }
+  if (t.dataset.k) {
+    const vi = +t.dataset.v, i = +t.dataset.i;
+    if (t.dataset.k === 'place')  return void placeSheet(vi, i);
+    if (t.dataset.k === 'person') return void personSheet(vi, i);
+    if (t.dataset.k === 'event')  return void eventSheet(vi, i);
+    if (t.dataset.k === 'note')   return noteSheet(vi);
+    if (t.dataset.k === 'xref')   return xrefSheet(vi);
+  }
+  if (t.dataset.ref)   return go('#/' + t.dataset.ref);
+  if (t.dataset.conc)  return void concSheet(t.dataset.conc);
+  if (t.dataset.dict)  return void dictSheet(t.dataset.dict);
+  if (t.dataset.book)  return chaptersSheet(t.dataset.book);
+  if (t.dataset.ch)    return go('#/' + t.dataset.cbook + '.' + t.dataset.ch);
+  if (t.dataset.nav)   return go('#/' + S.book + '.' + (S.ch + (t.dataset.nav === 'next' ? 1 : -1)));
+  if (t.dataset.go)    return go('#/' + t.dataset.go);
+  if (t.dataset.tab)   { STAB = t.dataset.tab; return void runSearch(SQ, STAB); }
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeSheet();
+});
+document.addEventListener('input', e => {
+  if (e.target.id !== 'q') return;
+  clearTimeout(window.__qt);
+  const v = e.target.value;
+  window.__qt = setTimeout(() => {
+    history.replaceState(null, '', '#/search?q=' + encodeURIComponent(v).replace(/%20/g, '+'));
+    const pos = e.target.selectionStart;
+    runSearch(v, STAB).then(() => {
+      const el = $('#q');
+      if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch {} }
+    });
+  }, 320);
+});
+document.addEventListener('submit', e => e.preventDefault());
+
+/* =================================================================== boot */
+async function boot() {
+  load();
+  try {
+    const [b, m, c] = await Promise.all([
+      get('books.json'), get('morph.json'), get('chronology.json')]);
+    S.books = b.books; S.names = b.names; S.morph = m; S.chron = c;
+    S.books.forEach((x, i) => S.bookIx[x[0]] = { n: x[1], t: x[2], chapters: x[3], i });
+    if (!(S.chron.schemes || []).some(s => s.scheme_id === S.scheme))
+      S.scheme = (S.chron.schemes[0] || {}).scheme_id || 'jones';
+  } catch (e) {
+    $('#view').innerHTML = `<p class="load">The text would not load.
+      If this is the first time you have opened it, you need to be online once;
+      after that it works offline.<br><br><span class="ot">${esc(e.message)}</span></p>`;
+    return;
+  }
+  $('#btnBooks').onclick = booksSheet;
+  $('#btnSet').onclick = settingsSheet;
+  $('#btnSearch').onclick = () => go('#/search?q=');
+  $('#ref').onclick = () => chaptersSheet(S.book);
+  $('#scrim').onclick = closeSheet;
+  window.addEventListener('hashchange', route);
+  route();
+  if ('serviceWorker' in navigator)
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+boot();

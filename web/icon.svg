@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="An open codex">
+  <rect width="512" height="512" rx="96" fill="#2f4a7d"/>
+  <g fill="none" stroke="#f8f7f4" stroke-width="20" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M256 140c-36-26-88-34-136-26v244c48-8 100 0 136 26 36-26 88-34 136-26V114c-48-8-100 0-136 26z"/>
+    <path d="M256 140v244"/>
+    <path d="M164 196h52M164 248h52M300 196h52M300 248h52" stroke-width="14" opacity=".75"/>
+  </g>
+</svg>
