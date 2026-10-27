@@ -27,7 +27,8 @@ import java.util.zip.GZIPInputStream
  */
 object CommentaryDatabase {
 
-    const val ASSET = "commentary.db.gz"
+    // .gzip, not .gz - see the noCompress comment in app/build.gradle.kts
+    const val ASSET = "commentary.db.gzip"
     private const val NAME = "commentary.db"
 
     /** Roughly what unpacking costs on disk. Shown before asking. */

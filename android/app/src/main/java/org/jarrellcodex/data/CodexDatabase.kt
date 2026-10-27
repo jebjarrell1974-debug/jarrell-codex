@@ -26,7 +26,8 @@ import java.util.zip.GZIPInputStream
  */
 object CodexDatabase {
 
-    private const val ASSET = "codex.db.gz"
+    // .gzip, not .gz - see the noCompress comment in app/build.gradle.kts
+    private const val ASSET = "codex.db.gzip"
     private const val NAME = "codex.db"
     @Volatile private var db: SQLiteDatabase? = null
 

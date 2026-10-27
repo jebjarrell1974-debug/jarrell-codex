@@ -16,11 +16,25 @@ android {
         versionName = "0.1.0"
     }
 
-    // The database ships gzipped inside the APK (61 MB) and is expanded to
-    // ~226 MB in app storage on first launch. Play's base-module limit is
-    // 500 MB compressed, so no asset pack or first-run download is needed.
+    // The databases ship gzipped inside the app and are expanded into app
+    // storage on first launch: codex 132 MB -> 456 MB, and the optional
+    // commentary 48 MB -> 148 MB. No asset pack, no first-run download: the
+    // app works the moment it is installed, which is the whole point.
+    //
+    // The extension is .gzip, NOT .gz, and that is deliberate. AAPT
+    // special-cases a ".gz" asset: it strips the extension and re-packs the
+    // contents, so "codex.db.gz" lands in the APK as "codex.db" holding the
+    // DECOMPRESSED database. The app would then look for an asset that is not
+    // there, and the APK would be 32 MB larger for the privilege, because
+    // AAPT's deflate is worse than gzip -9. ".gzip" is not special-cased, and
+    // noCompress keeps it stored byte-for-byte as built.
+    //
+    // Size: Play allows a 500 MB compressed download for an app bundle's base
+    // module, which this is inside. A plain APK is capped at 100 MB, so the
+    // Play build must be an .aab (bundleRelease). The APK is for sideloading,
+    // where no limit applies.
     androidResources {
-        noCompress += listOf("gz")
+        noCompress += listOf("gzip")
     }
 
     buildTypes {
