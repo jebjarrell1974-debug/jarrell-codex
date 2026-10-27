@@ -1360,6 +1360,14 @@ function welcomeView() {
      and every other verse in the Bible that uses it.`));
 
   o.push(tip(
+    `<span class="demo">\u25cc</span>`,
+    'A few places you can stand in',
+    `Where somebody has left a full 360\u00b0 photograph \u2014 Mount Sinai,
+     Nazareth, Bethlehem, Hebron, Jericho and about twenty more \u2014 the place
+     panel lets you turn round on the spot and look at the hills. Arrows,
+     or drag it with your thumb.`));
+
+  o.push(tip(
     `<span class="demo" style="color:var(--accent)">\u25c6</span>`,
     'Tap the little markers under a verse',
     `They lead to the place and what it looks like today, the people, the date
@@ -1772,6 +1780,8 @@ function aboutView() {
     'The spoken readings behind the Listen control — every chapter of all 66 books, read by volunteers and released into the public domain. Nothing is stored here: the files stream from archive.org, so they need a connection even when the text does not.'],
    ['Wikimedia Commons and Wikidata',
     'The photographs of the places. Each one carries its own licence and photographer where it appears; none were used that are not free to pass on.'],
+   ['Mapillary, via Wikimedia Commons',
+    'The 25 full 360\u00b0 photospheres \u2014 the places you can stand in and turn round. Somebody walked up there with a camera and gave the picture away, which is why Mount Sinai is in and most places are not: the coverage follows roads and footpaths. Each one names who took it, how far from the spot it was taken, and links its page. Nearly all CC BY-SA 4.0.'],
    ['Gustave Doré, 1866',
     'The 150 engravings. Doré died in 1883, so the plates have been in the public domain for a century; these scans come from Wikimedia Commons. 125 are set at the verse the printer named; the rest are in the gallery, each with the reason it is not in the text.']
   ].forEach(([t, b]) => o.push(

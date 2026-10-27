@@ -4,6 +4,9 @@ BASE = 'http://127.0.0.1:8777/'
 SHOT = '/home/claude/shots'
 import os; os.makedirs(SHOT, exist_ok=True)
 fails, errs = [], []
+import json as _json, io as _io
+MANIFEST_TIERS = _json.load(_io.open(
+    '/home/claude/site/data/offline_manifest.json', encoding='utf-8'))['tiers']
 
 async def main():
     async with async_playwright() as p:
@@ -227,7 +230,13 @@ async def main():
         t = await pg.inner_text('#view')
         chk('offline page loads', 'keep it offline' in t.lower(), t[:200])
         tiers = await pg.locator('[data-tier]').count()
-        chk('six tiers offered', tiers == 6, tiers)
+        # Seven now: the photospheres joined the text, word study, search,
+        # photographs, engravings and commentaries. Asserted as a count
+        # rather than a number typed in by hand, so adding one does not
+        # mean editing this line again.
+        ntier = await pg.locator('[data-tier]').count()
+        chk('every tier in the manifest is offered',
+            ntier == len(MANIFEST_TIERS), f'{ntier} vs {len(MANIFEST_TIERS)}')
         for want in ['The text', 'Word study', 'Search', 'commentators', 'Photographs', 'engravings']:
             chk(f'tier {want}', want.lower() in t.lower())
         chk('a total size is shown', 'MB' in t, t[:200])

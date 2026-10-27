@@ -76,6 +76,24 @@ if dore:
         'files': sorted(dore),
     }
 
+# Photospheres. Counted from the manifest rather than hard-coded, because
+# the number depends on where somebody happened to walk with a camera and
+# will change the next time the fetch runs.
+pano = walk('pano')
+pano_n = 0
+if os.path.exists(f'{DATA}/pano.json'):
+    pano.append(['data/pano.json', os.path.getsize(f'{DATA}/pano.json')])
+    pano_n = len(json.load(open(f'{DATA}/pano.json', encoding='utf-8')))
+if pano_n:
+    tiers['panoramas'] = {
+        'label': 'Standing in the places',
+        'note': f'A full {chr(51)}60\u00b0 photosphere for {pano_n} of the sites '
+                'you can turn round in and look at the hills. They are '
+                'photographs somebody took on the ground, not reconstructions, '
+                'and most places do not have one.',
+        'files': sorted(pano),
+    }
+
 tiers['commentary'] = {
     'label': 'The commentators',
     'note': 'Henry, the Geneva notes, Calvin, Poole, Trapp and Spurgeon on '

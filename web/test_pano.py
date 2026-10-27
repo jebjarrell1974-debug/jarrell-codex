@@ -64,14 +64,38 @@ async def main():
         chk('every one names a licence', not bad, bad[:4])
         bad = [k for k, v in MAN.items() if not v.get('file')]
         chk('and a file', not bad, bad[:4])
-        bad = [k for k, v in MAN.items()
-               if 'by-sa' not in str(v.get('licence', '')).lower()
-               and 'cc0' not in str(v.get('licence', '')).lower()
-               and 'public domain' not in str(v.get('licence', '')).lower()]
-        chk('and a licence that lets us pass it on', not bad, bad[:4])
+        # Plain CC BY is freer than CC BY-SA, not less free: it asks for a
+        # credit and nothing else. The first version of this check only
+        # allowed share-alike and flagged a CC BY 2.5 image, which is the
+        # check being wrong rather than the image.
+        def passable(lic):
+            lic = str(lic).lower()
+            return ('cc by' in lic or 'cc-by' in lic or 'cc0' in lic
+                    or 'public domain' in lic)
+        bad = [k for k, v in MAN.items() if not passable(v.get('licence', ''))]
+        chk('and a licence that lets us pass it on', not bad,
+            [(k, MAN[k].get('licence')) for k in bad[:4]])
         bad = [k for k, v in MAN.items()
                if not v.get('artist') and 'cc0' not in str(v.get('licence', '')).lower()]
         chk('and names who took it', not bad, bad[:4])
+        # The Artist field arrives as wiki HTML and was truncated mid-tag,
+        # so the first cleaning pass left half an <a href> in every credit.
+        # Escaped into the page, a reader would have seen the tags.
+        bad = [k for k, v in MAN.items()
+               if '<' in str(v.get('artist', '')) or '>' in str(v.get('artist', ''))
+               or 'http' in str(v.get('artist', ''))]
+        chk('and names them as a name, not as markup', not bad, bad[:4])
+        bad = [k for k, v in MAN.items() if not v.get('page')]
+        chk('and links the page it came from', not bad, bad[:4])
+        bad = [k for k, v in MAN.items()
+               if v.get('km') is None or v['km'] > 3.01]
+        chk('nothing is claimed from more than 3 km away', not bad,
+            [(k, MAN[k].get('km')) for k in bad[:4]])
+        import os as _os
+        big = [(k, _os.path.getsize('/home/claude/site/data/pano/' + v['file']))
+               for k, v in MAN.items()
+               if _os.path.getsize('/home/claude/site/data/pano/' + v['file']) > 368640]
+        chk('and nothing is over 360 KB', not big, big[:3])
 
         # ---- does the viewer come up ------------------------------------
         print('\nopening one')
@@ -236,6 +260,62 @@ async def main():
         chk('dragging left turns you right',
             await pg.evaluate("() => PV.yaw") > 0,
             await pg.evaluate("() => PV.yaw"))
+
+        # ---- a real one, not the fixture -------------------------------
+        # The fixture proves the projection. Only a real file proves the
+        # real files load, at the real size, from the real manifest.
+        print('\nMount Sinai, which is the one he asked for')
+        # Exodus 16, not 19: the place marker in 19 is a different entry
+        # and matching on "Sinai" picked it up. Mount Sinai is tagged in 18
+        # chapters and Exodus 16 is one of them.
+        await pg.goto(BASE + '#/Exo.16', wait_until='load')
+        await pg.wait_for_function(
+            "() => document.querySelectorAll('#view .v').length > 0", timeout=20000)
+        # Drop the fixture so the panel loads the real manifest. A goto
+        # that only changes the hash does not reload the document, so
+        # S.pano was still holding the one-entry fixture - which is why
+        # Mount Sinai looked as though it had no photosphere.
+        await pg.evaluate("() => { S.pano = null; }")
+        opened = await pg.evaluate("""() => {
+            const b = [...document.querySelectorAll('.chip.place')]
+              .find(e => e.textContent.includes('Mount Sinai'));
+            if (b) { b.click(); return b.textContent.trim(); }
+            return null;
+        }""")
+        chk('Mount Sinai is a place in Exodus 16', opened is not None, opened)
+        if opened:
+            await pg.wait_for_timeout(1200)
+            look = pg.locator('[data-look]')
+            chk('it offers the photosphere', await look.count() == 1,
+                await look.count())
+            await look.first.click()
+            await pg.wait_for_function(
+                "() => { const c = document.getElementById('panoC');"
+                " return c && c.width > 0 && !document.querySelector('.pano-load'); }",
+                timeout=30000)
+            await pg.wait_for_timeout(400)
+            chk('and it comes up', await pg.evaluate("() => !!PV.gl"))
+            # a real photograph is not a flat colour
+            spread = await pg.evaluate("""() => {
+                PV.yaw = 0; PV.pitch = 0; panoDraw();
+                const c = document.getElementById('panoC'), g = PV.gl;
+                const w = c.width, h = c.height;
+                const px = new Uint8Array(w * h * 4);
+                g.readPixels(0, 0, w, h, g.RGBA, g.UNSIGNED_BYTE, px);
+                let lo = 255, hi = 0;
+                for (let i = 0; i < px.length; i += 4) {
+                    const v = (px[i] + px[i+1] + px[i+2]) / 3;
+                    if (v < lo) lo = v;
+                    if (v > hi) hi = v;
+                }
+                return hi - lo;
+            }""")
+            chk('it is a photograph, not a blank frame', spread > 60, spread)
+            note = await pg.inner_text('#panoNote')
+            chk('it says how far from the summit it was taken',
+                'from the spot itself' in note, note)
+            chk('and who took it', 'asturksever' in note, note)
+            chk('and the licence', 'CC BY-SA' in note, note)
 
         print('\na place with no photosphere says so')
         await pg.goto(BASE + '#/Gen.2', wait_until='load')
