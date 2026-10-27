@@ -53,7 +53,37 @@ fun ReaderScreen(vm: ReaderViewModel) {
             Modifier.fillMaxSize().padding(pad),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
         ) {
-            items(s.verses, key = { it.verseKey }) { v -> VerseRow(v) { vm.selectWord(it) } }
+            if (s.commentaryOffered) {
+                item {
+                    AddCommentaryCard(
+                        unpacking = s.unpacking,
+                        progress = s.unpackProgress,
+                        failure = s.commentaryError,
+                        onAdd = { vm.addCommentary() },
+                    )
+                }
+            }
+            if (s.commentaryReady) {
+                item {
+                    TextButton(onClick = { vm.openChapterCommentary() }) {
+                        Text("\u00a7 Commentary on this chapter")
+                    }
+                }
+            }
+            items(s.verses, key = { it.verseKey }) { v ->
+                VerseRow(
+                    v = v,
+                    commentaryCount = s.commentaryCounts[v.number.toIntOrNull() ?: -1] ?: 0,
+                    onWord = { vm.selectWord(it) },
+                    onCommentary = { vm.openCommentary(v.verseKey) },
+                )
+            }
+        }
+    }
+
+    s.commentary?.let { units ->
+        ModalBottomSheet(onDismissRequest = { vm.closeCommentary() }) {
+            CommentarySheet(s.commentaryTitle, units)
         }
     }
 
@@ -66,7 +96,12 @@ fun ReaderScreen(vm: ReaderViewModel) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun VerseRow(v: VerseBlock, onWord: (Token) -> Unit) {
+private fun VerseRow(
+    v: VerseBlock,
+    commentaryCount: Int,
+    onWord: (Token) -> Unit,
+    onCommentary: () -> Unit,
+) {
     Row(Modifier.padding(vertical = 10.dp)) {
         Text(
             v.number,
@@ -96,6 +131,16 @@ private fun VerseRow(v: VerseBlock, onWord: (Token) -> Unit) {
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+            if (commentaryCount > 0) {
+                Spacer(Modifier.height(4.dp))
+                TextButton(onClick = onCommentary, contentPadding = PaddingValues(0.dp)) {
+                    Text(
+                        "\u00a7 $commentaryCount commentar" +
+                            if (commentaryCount == 1) "y" else "ies",
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                }
             }
         }
     }

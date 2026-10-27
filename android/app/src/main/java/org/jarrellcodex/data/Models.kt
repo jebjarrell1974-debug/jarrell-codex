@@ -59,3 +59,40 @@ fun formatYear(year: Int?): String? =
         year < 0 -> "${-year} BC"
         else -> "AD $year"
     }
+
+/** One of the six public-domain commentators carried in commentary.db. */
+data class Commentator(
+    val sourceId: String,
+    val author: String,
+    val work: String,
+    val sort: Int,
+)
+
+/**
+ * A single stretch of commentary. [verseFrom] is null when the unit covers a
+ * whole chapter or a whole book, which the UI must say rather than implying
+ * the words were written about the verse in front of the reader.
+ */
+data class CommentaryUnit(
+    val unitId: Int,
+    val sourceId: String,
+    val author: String,
+    val work: String,
+    val scope: String,          // book | chapter | passage
+    val verseFrom: Int?,
+    val verseTo: Int?,
+    val title: String?,
+    val body: String,
+) {
+    val coverage: String
+        get() = when {
+            scope == "book" -> "preface to the book"
+            verseFrom == null -> "on the whole chapter"
+            verseTo == null || verseTo == verseFrom -> "on verse $verseFrom"
+            else -> "on verses $verseFrom–$verseTo"
+        }
+
+    /** The database stores paragraphs joined by a blank line. */
+    val paragraphs: List<String>
+        get() = body.split("\n\n").map { it.trim() }.filter { it.isNotEmpty() }
+}

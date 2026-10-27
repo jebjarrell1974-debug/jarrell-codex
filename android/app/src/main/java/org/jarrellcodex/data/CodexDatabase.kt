@@ -16,9 +16,13 @@ import java.util.zip.GZIPInputStream
  * asset, and the entity declarations would be a second source of truth free to
  * drift from the real schema. Plain SQLite is less code and has no such drift.
  *
- * It travels gzipped (61 MB) and is expanded to ~226 MB in app storage on
+ * It travels gzipped (132 MB) and is expanded to ~456 MB in app storage on
  * first launch - inside Play's 500 MB base-module limit, so there is no asset
  * pack and no first-run download. The app works the moment it is installed.
+ *
+ * The commentators live in a second, optional database - see
+ * CommentaryDatabase - so a phone short of space can carry the text, the
+ * parsing, the lexicons and the notes without them.
  */
 object CodexDatabase {
 

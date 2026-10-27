@@ -7,9 +7,34 @@ import kotlinx.coroutines.withContext
 class CodexRepository(private val context: Context) {
 
     private val dao by lazy { CodexDao(context) }
+    private val commentary by lazy { CommentaryDao(context) }
 
-    /** First call blocks while the 226 MB database is expanded. Off the main thread. */
+    /** First call blocks while the 456 MB database is expanded. Off the main thread. */
     suspend fun warmUp(): Int = withContext(Dispatchers.IO) { dao.tokenCount() }
+
+    // ---- the commentators, which are optional -----------------------------
+
+    /** False until the reader has spent the disk on them. */
+    suspend fun hasCommentary(): Boolean = withContext(Dispatchers.IO) { commentary.isReady }
+
+    /** True when the APK carries the asset at all. */
+    fun commentaryAvailable(): Boolean = CommentaryDatabase.isAvailable(context)
+
+    suspend fun addCommentary(onProgress: (Float) -> Unit): Boolean =
+        withContext(Dispatchers.IO) { CommentaryDatabase.unpack(context, onProgress) }
+
+    suspend fun removeCommentary(): Boolean =
+        withContext(Dispatchers.IO) { CommentaryDatabase.remove(context) }
+
+    suspend fun commentaryOn(verseKey: String): List<CommentaryUnit> =
+        withContext(Dispatchers.IO) { commentary.forVerse(verseKey) }
+
+    suspend fun commentaryOnChapter(book: String, chapter: Int): List<CommentaryUnit> =
+        withContext(Dispatchers.IO) { commentary.forChapter(book, chapter) }
+
+    /** Verse number -> how many units touch it, for the chapter markers. */
+    suspend fun commentaryCounts(book: String, chapter: Int): Map<Int, Int> =
+        withContext(Dispatchers.IO) { commentary.countsForChapter(book, chapter) }
 
     suspend fun chapter(book: String, chapter: Int): List<VerseBlock> = withContext(Dispatchers.IO) {
         dao.chapter(book, chapter)
