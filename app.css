@@ -187,3 +187,15 @@ input[type=search]{width:100%;background:var(--surface);border:1px solid var(--l
 .foot a,.de a{text-decoration:underline;text-underline-offset:2px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;
   transition:none!important}}
+
+/* ---- tappable options instead of dropdowns ---------------------------
+   A <select> defeated every older participant Sayago & Blat tested, while
+   larger tappable controls did not. These are 52px tall and full width. */
+.opts{display:flex;flex-direction:column;gap:8px;margin:6px 0 4px}
+.opt{display:block;width:100%;text-align:left;min-height:52px;
+  padding:12px 14px;border:1px solid var(--line);border-radius:10px;
+  background:var(--surface);color:var(--ink);font-size:var(--t2)}
+.opt.on{border-color:var(--accent);background:var(--accent-soft);
+  color:var(--accent);font-weight:600}
+.opt:active{border-color:var(--accent)}
+#btnAa{font-size:var(--t4)}

@@ -8,7 +8,7 @@ const S = {
   morph: {}, chron: null, order: null,
   place: null, person: null, event: null, dictIx: null, cmMeta: null,
   man: null, dlTiers: {},
-  fs: 19, theme: 'auto',
+  fs: 19, theme: 'light',
   lex: {}, conc: {}, idx: {},
   book: 'Jhn', ch: 3,
   tx: 'KJV', scheme: 'jones', showOrig: true, pron: 'erasmian'
@@ -535,6 +535,11 @@ function applyDisplay() {
   r.setAttribute('data-theme', S.theme);
 }
 
+function displaySheet() {
+  sheet(`<p class="lbl">Reading</p>` + displayPanel() +
+    `<button class="more" data-go="offline">Keep it offline \u2014 download the whole Bible \u2192</button>`);
+}
+
 function displayPanel() {
   const pct = Math.round(100 * S.fs / 19);
   return `
@@ -558,12 +563,14 @@ function displayPanel() {
 
   <p class="lbl">Brightness</p>
   <div class="tabs" style="margin:6px 0 4px">
-    ${[['auto', 'Match my phone'], ['light', 'Light'], ['dark', 'Dark']]
+    ${[['light', 'Light'], ['dark', 'Dark'], ['auto', 'Match my phone']]
       .map(([k, l]) => `<button data-setbright="${k}" class="${S.theme === k ? 'on' : ''}">${l}</button>`).join('')}
   </div>
-  <p class="pa" style="margin:0 0 18px">Light print on a dark screen can smear
-    for eyes with astigmatism or a cataract, which are common later in life. If
-    dark looks blurry rather than restful, choose Light.</p>`;
+  <p class="pa" style="margin:0 0 18px">Dark print on a light page tested
+    better for most readers over sixty, so that is the default. But readers
+    with a cataract often do better the other way round, because a dark screen
+    throws less light to scatter. Try both and keep whichever is easier —
+    your own eyes are the evidence here, not ours.</p>`;
 }
 
 /* =========================================================== offline save */
@@ -926,11 +933,11 @@ async function chronoView() {
   o.push(`<h1 style="font-size:1.3rem;margin:6px 0 2px">The story in order</h1>`);
   o.push(`<p class="ot" style="margin:0 0 14px">${ord.dated.length} dated events
     &middot; ${S.order.order ? Object.keys(S.order.order).length : 0} schemes to choose from</p>`);
-  o.push(`<label class="lbl" for="schemeSel">Chronology</label>
-    <select id="schemeSel" style="width:100%;margin-bottom:10px">${
-      (S.chron.schemes || []).map(s => `<option value="${esc(s.scheme_id)}"
-        ${s.scheme_id === S.scheme ? 'selected' : ''}>${esc(s.name)}${
-        s.coverage === 'full' ? '' : ' — partial'}</option>`).join('')}</select>`);
+  o.push(`<p class="lbl">Chronology</p>
+    <div class="opts" style="margin-bottom:10px">${(S.chron.schemes || []).map(s =>
+      `<button class="opt ${s.scheme_id === S.scheme ? 'on' : ''}" data-setscheme2="${esc(s.scheme_id)}">${
+        s.scheme_id === S.scheme ? '\u2713 ' : ''}${esc(s.name)}${
+        s.coverage === 'full' ? '' : ' — partial'}</button>`).join('')}</div>`);
   if (sch.summary) o.push(`<p class="de" style="color:var(--ink-soft)">${esc(sch.summary)}</p>`);
   if (sch.source) o.push(`<p class="oc">${esc(sch.source)}</p>`);
 
@@ -967,9 +974,7 @@ async function chronoView() {
   o.push(footer());
   $('#view').innerHTML = o.join('');
   window.scrollTo(0, 0);
-  $('#schemeSel').onchange = e => {
-    S.scheme = e.target.value; save(); chronoView();
-  };
+
 }
 
 /* ================================================================== about */
@@ -1090,26 +1095,29 @@ function chaptersSheet(book) {
 }
 function settingsSheet() {
   const o = [`<p class="lbl">Settings</p>`];
-  o.push(displayPanel());
-  o.push(`<label class="lbl" style="margin-top:12px" for="txSel">English translation</label>
-    <select id="txSel" style="width:100%">${Object.entries(TX).map(([k, v]) =>
-      `<option value="${k}" ${S.tx === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>`);
-  o.push(`<label class="lbl" style="margin-top:16px" for="prSel">Greek pronunciation</label>
-    <select id="prSel" style="width:100%">${Object.keys(PRON).map(k =>
-      `<option value="${k}" ${S.pron === k ? 'selected' : ''}>${k[0].toUpperCase() + k.slice(1)}</option>`).join('')}</select>
+  o.push(`<button class="opt" data-go2="display" style="margin-bottom:18px">
+    Text size and brightness \u2192</button>`);
+  o.push(`<p class="lbl" style="margin-top:12px">English translation</p>
+    <div class="opts">${Object.entries(TX).map(([k, v]) =>
+      `<button class="opt ${S.tx === k ? 'on' : ''}" data-settx="${k}">${
+        S.tx === k ? '\u2713 ' : ''}${esc(v)}</button>`).join('')}</div>`);
+  o.push(`<p class="lbl" style="margin-top:18px">Greek pronunciation</p>
+    <div class="opts">${Object.keys(PRON).map(k =>
+      `<button class="opt ${S.pron === k ? 'on' : ''}" data-setpron="${k}">${
+        S.pron === k ? '\u2713 ' : ''}${k[0].toUpperCase() + k.slice(1)}</button>`).join('')}</div>
     <p class="pa">${esc(PRON[S.pron])}</p>`);
-  o.push(`<label class="lbl" style="margin-top:16px" for="scSel">Chronology</label>
-    <select id="scSel" style="width:100%">${(S.chron.schemes || []).map(s =>
-      `<option value="${esc(s.scheme_id)}" ${s.scheme_id === S.scheme ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>`);
+  o.push(`<p class="lbl" style="margin-top:18px">Chronology</p>
+    <div class="opts">${(S.chron.schemes || []).map(s =>
+      `<button class="opt ${s.scheme_id === S.scheme ? 'on' : ''}" data-setscheme="${esc(s.scheme_id)}">${
+        s.scheme_id === S.scheme ? '\u2713 ' : ''}${esc(s.name)}</button>`).join('')}</div>`);
   o.push(`<label class="lbl" style="margin-top:16px">Original language</label>
     <button class="chip" id="origTgl" style="margin-top:4px">${S.showOrig ?
       '✓ showing Hebrew / Greek' : 'hidden — English only'}</button>`);
   o.push(`<button class="more" data-go="offline" style="margin-top:22px">Keep it offline — download the whole Bible →</button>`);
   o.push(`<button class="more" data-go="about">About, sources and licences →</button>`);
   sheet(o.join(''));
-  $('#txSel').onchange = e => { S.tx = e.target.value; save(); renderChapter(); };
-  $('#prSel').onchange = e => { S.pron = e.target.value; save(); settingsSheet(); };
-  $('#scSel').onchange = e => { S.scheme = e.target.value; save(); };
+  // buttons now, handled by delegation - a <select> defeated every older
+  // participant Sayago & Blat tested, while larger tappable controls did not
   $('#origTgl').onclick = () => { S.showOrig = !S.showOrig; save(); renderChapter(); settingsSheet(); };
 }
 
@@ -1161,7 +1169,7 @@ function route() {
 
 /* ========================================================= event wiring */
 document.addEventListener('click', ev => {
-  const t = ev.target.closest('[data-fs],[data-setbright],[data-tier],[data-dlstart],[data-dlstop],[data-dlclear],[data-cmf],[data-close],[data-v][data-t],[data-k],[data-ref],[data-conc],[data-dict],[data-book],[data-ch],[data-nav],[data-go],[data-tab],[data-expand]');
+  const t = ev.target.closest('[data-go2],[data-fs],[data-setbright],[data-settx],[data-setpron],[data-setscheme],[data-setscheme2],[data-tier],[data-dlstart],[data-dlstop],[data-dlclear],[data-cmf],[data-close],[data-v][data-t],[data-k],[data-ref],[data-conc],[data-dict],[data-book],[data-ch],[data-nav],[data-go],[data-tab],[data-expand]');
   if (!t) return;
 
   if (t.dataset.close) return closeSheet();
@@ -1178,12 +1186,17 @@ document.addEventListener('click', ev => {
   }
   if (t.dataset.fs) {
     S.fs = Math.min(FS_MAX, Math.max(FS_MIN, S.fs + (+t.dataset.fs) * FS_STEP));
-    applyDisplay(); save(); settingsSheet();
+    applyDisplay(); save(); displaySheet();
     return;
   }
+  if (t.dataset.go2 === 'display') return displaySheet();
+  if (t.dataset.settx)      { S.tx = t.dataset.settx; save(); renderChapter(); settingsSheet(); return; }
+  if (t.dataset.setpron)    { S.pron = t.dataset.setpron; save(); settingsSheet(); return; }
+  if (t.dataset.setscheme)  { S.scheme = t.dataset.setscheme; save(); settingsSheet(); return; }
+  if (t.dataset.setscheme2) { S.scheme = t.dataset.setscheme2; save(); chronoView(); return; }
   if (t.dataset.setbright) {
     S.theme = t.dataset.setbright;
-    applyDisplay(); save(); settingsSheet();
+    applyDisplay(); save(); displaySheet();
     return;
   }
   if (t.dataset.tier) {
@@ -1262,6 +1275,7 @@ async function boot() {
   }
   $('#btnBooks').onclick = booksSheet;
   $('#btnSet').onclick = settingsSheet;
+  $('#btnAa').onclick = displaySheet;
   $('#btnSearch').onclick = () => go('#/search?q=');
   $('#ref').onclick = () => chaptersSheet(S.book);
   $('#scrim').onclick = closeSheet;
