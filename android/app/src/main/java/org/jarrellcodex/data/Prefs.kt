@@ -40,6 +40,15 @@ class Prefs(context: Context) {
         get() = sp.getString(KEY_CHRON, "jones") ?: "jones"
         set(v) { sp.edit().putString(KEY_CHRON, v).apply() }
 
+    /**
+     * Whether the engravings appear in the text. On by default, because
+     * most readers like them, and switchable because some find a
+     * full-width picture every few chapters gets in the way of reading.
+     */
+    var showPlates: Boolean
+        get() = sp.getBoolean(KEY_PLATES, true)
+        set(v) { sp.edit().putBoolean(KEY_PLATES, v).apply() }
+
     /** Where the reader was, so the app opens there rather than at Genesis. */
     var lastBook: String
         get() = sp.getString(KEY_BOOK, "Gen") ?: "Gen"
@@ -56,5 +65,6 @@ class Prefs(context: Context) {
         const val KEY_CHRON = "chronology"
         const val KEY_BOOK = "book"
         const val KEY_CH = "chapter"
+        const val KEY_PLATES = "showPlates"
     }
 }

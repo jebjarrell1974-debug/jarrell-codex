@@ -44,8 +44,17 @@ data class Plate(
     /** The printer's own reference, e.g. "Gen. 1:1-5". May be blank. */
     val reference: String,
     val page: String,
+    /** The verse it is set at, or blank if it is not in the text. */
+    val at: String = "",
+    /**
+     * Why it is not in the text, when it is not: the book outside this
+     * Bible that it illustrates. Blank when no reference was recorded
+     * anywhere, which is a different thing and said differently.
+     */
+    val outside: String = "",
 ) {
     val asset: String get() = "dore/$file"
+    val placed: Boolean get() = at.isNotEmpty()
 }
 
 /**
@@ -66,6 +75,9 @@ class Pictures private constructor(
     private val plates: Map<String, Plate>,
     private val atVerse: Map<String, List<String>>,
 ) {
+    /** Plate order, which is canonical order, which is Dore's own. */
+    fun allPlates(): List<Plate> =
+        plates.values.sortedBy { it.id.toIntOrNull() ?: Int.MAX_VALUE }
     val photoCount: Int get() = photos.size
     val plateCount: Int get() = plates.size
 
@@ -117,6 +129,7 @@ class Pictures private constructor(
                     )
                 }
 
+                val apo = dj.optJSONObject("apoc") ?: JSONObject()
                 val ao = dj.getJSONObject("at")
                 val at = HashMap<String, List<String>>(ao.length() * 2)
                 for (key in ao.keys()) {
@@ -124,6 +137,17 @@ class Pictures private constructor(
                     val ids = ArrayList<String>(arr.length())
                     for (i in 0 until arr.length()) ids.add(arr.getString(i))
                     at[key] = ids
+                }
+
+                // Fold each plate's standing into the plate itself, so a
+                // gallery does not have to re-derive it from three maps.
+                val whereBy = HashMap<String, String>(plates.size * 2)
+                for ((vk, ids) in at) for (id in ids) whereBy.putIfAbsent(id, vk)
+                for ((id, pl) in plates) {
+                    plates[id] = pl.copy(
+                        at = whereBy[id] ?: "",
+                        outside = if (apo.isNull(id)) "" else apo.optString(id, ""),
+                    )
                 }
 
                 Pictures(photos, plates, at)

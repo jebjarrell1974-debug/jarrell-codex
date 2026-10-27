@@ -36,6 +36,9 @@ data class ReaderState(
      * plates in it instead of waiting for the next one.
      */
     val pictures: Pictures? = null,
+    val showPlates: Boolean = true,
+    /** The engravings gallery, when it is open. */
+    val gallery: List<Plate>? = null,
     val error: String? = null,
     // the commentators, which the reader opts into
     val commentaryReady: Boolean = false,
@@ -78,6 +81,7 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
             palette = prefs.palette,
             translationCode = prefs.translation,
             schemeId = prefs.chronology,
+            showPlates = prefs.showPlates,
         )
     )
     val state: StateFlow<ReaderState> = _state.asStateFlow()
@@ -101,6 +105,11 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
     fun setPalette(p: Palette) {
         prefs.palette = p
         _state.value = _state.value.copy(palette = p)
+    }
+
+    fun setShowPlates(on: Boolean) {
+        prefs.showPlates = on
+        _state.value = _state.value.copy(showPlates = on)
     }
 
     // ---- the spoken readings ----------------------------------------------
@@ -156,7 +165,21 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
      * is a chapter with no pictures rather than a chapter that stalls.
      */
     fun platesAt(verseKey: String): List<Plate> =
-        _state.value.pictures?.platesAt(verseKey) ?: emptyList()
+        if (!_state.value.showPlates) emptyList()
+        else _state.value.pictures?.platesAt(verseKey) ?: emptyList()
+
+    /**
+     * All 150 plates in the order Dore published them, each with an honest
+     * account of itself: the verse it sits at, the book outside this Bible
+     * that it illustrates, or nothing recorded at all.
+     */
+    fun openGallery() = viewModelScope.launch {
+        val pics = _state.value.pictures ?: Pictures.load(getApplication())
+        if (pics == null) return@launch
+        _state.value = _state.value.copy(pictures = pics, gallery = pics.allPlates())
+    }
+
+    fun closeGallery() { _state.value = _state.value.copy(gallery = null) }
 
     fun photoOf(placeName: String): Photo? =
         _state.value.pictures?.photo(placeName)

@@ -154,8 +154,21 @@ fun ReaderScreen(vm: ReaderViewModel) {
             DisplaySheet(
                 fontSize = s.fontSize,
                 palette = s.palette,
+                showPlates = s.showPlates,
                 onFontSize = { vm.setFontSize(it) },
                 onPalette = { vm.setPalette(it) },
+                onShowPlates = { vm.setShowPlates(it) },
+                onGallery = { vm.closeDisplay(); vm.openGallery() },
+            )
+        }
+    }
+
+    s.gallery?.let { plates ->
+        ModalBottomSheet(onDismissRequest = { vm.closeGallery() }) {
+            GallerySheet(
+                plates = plates,
+                nameOf = { vm.bookName(it) },
+                onGo = { vm.closeGallery(); vm.goTo(it) },
             )
         }
     }

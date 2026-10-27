@@ -37,8 +37,11 @@ import androidx.compose.ui.unit.sp
 fun DisplaySheet(
     fontSize: Int,
     palette: Palette,
+    showPlates: Boolean,
     onFontSize: (Int) -> Unit,
     onPalette: (Palette) -> Unit,
+    onShowPlates: (Boolean) -> Unit,
+    onGallery: () -> Unit,
 ) {
     Column(
         Modifier
@@ -93,6 +96,42 @@ fun DisplaySheet(
                 lineHeight = (fontSize * 29f / 16f).sp,
                 color = MaterialTheme.colorScheme.onSurface,
             )
+        }
+
+        Spacer(Modifier.height(24.dp))
+        Text("Pictures", style = MaterialTheme.typography.labelLarge,
+             color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(8.dp))
+        Surface(
+            onClick = { onShowPlates(!showPlates) },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp),
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(
+                if (showPlates) 2.dp else 1.dp,
+                if (showPlates) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.outline,
+            ),
+        ) {
+            Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    if (showPlates) "✓ Showing the engravings in the text"
+                    else "Engravings hidden — words only",
+                    style = MaterialTheme.typography.titleSmall,
+                )
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "Gustave Doré engraved these in 1866. They are one Victorian " +
+            "artist's reading of the scene, not a photograph and not evidence " +
+            "— but he was very good, and they sit where the text puts them.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        TextButton(onClick = onGallery,
+                   contentPadding = PaddingValues(vertical = 6.dp)) {
+            Text("See all 150 engravings →")
         }
 
         Spacer(Modifier.height(24.dp))
