@@ -55,6 +55,17 @@ for frag, label in [('data-listen', 'the Listen hook'),
     chk(label, frag in js)
 chk('the colour no longer doubles as a chronology id',
     'scheme_id === S.scheme' not in js)
+chk('the lock screen gets the chapter and the credit',
+    'mediaSession' in js and 'MediaMetadata' in js)
+chk('and stopping clears it', 'playbackState' in js)
+chk('a finished reading carries on into the next',
+    "addEventListener('ended', auNext)" in js)
+chk('and says that it carried on rather than being asked',
+    'so this one carried' in js)
+chk('a Listen control at the foot of the chapter too',
+    js.count('data-listen="1"') >= 2, js.count('data-listen="1"'))
+chk('the offline page says the readings cannot be kept',
+    'spoken readings' in js and 'needs a connection even after you' in js)
 html = grab('index.html')
 chk('the player markup is served', 'id="plAudio"' in html and 'id="player"' in html)
 css = grab('app.css')
