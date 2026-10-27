@@ -33,8 +33,12 @@ android {
     // module, which this is inside. A plain APK is capped at 100 MB, so the
     // Play build must be an .aab (bundleRelease). The APK is for sideloading,
     // where no limit applies.
+    // WebP is already compressed, so deflating it again costs build time
+    // and decode time and saves nothing. Stored, it also means a picture can
+    // be decoded straight from the asset stream without being copied out
+    // first, which is how Pictures.kt reads all 457 of them.
     androidResources {
-        noCompress += listOf("gzip")
+        noCompress += listOf("gzip", "webp")
     }
 
     buildTypes {

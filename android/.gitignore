@@ -1,6 +1,14 @@
 # The database asset is a build artifact, not source. Regenerate it with
 # scripts/build_all.sh and gzip the result into app/src/main/assets/.
 app/src/main/assets/*.gz
+app/src/main/assets/*.gzip
+# So are the pictures: they were fetched once and published to gh-pages,
+# which is where the website serves them from. The build stages them in
+# from that branch rather than keeping a second 58 MB copy here.
+app/src/main/assets/pix/
+app/src/main/assets/dore/
+app/src/main/assets/pix_manifest.json
+app/src/main/assets/dore.json
 .gradle/
 build/
 local.properties
