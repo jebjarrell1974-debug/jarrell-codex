@@ -232,6 +232,10 @@ function renderChapter(scrollToVerse) {
     ${esc(refLabel(d.b + '.' + d.c)).replace(/ \d+$/, '')} and this chapter</button></div>`);
 
   const meta = S.bookIx[d.b];
+  out.push(`<button class="listen" data-listen="1" style="margin:22px 0 0">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M8 5v14l11-7z"/></svg>
+    <span>Listen to ${esc(refLabel(d.b + '.' + d.c))}</span></button>`);
   out.push(`<div style="display:flex;gap:10px;margin:22px 0 0">
     ${d.c > 1 ? `<button class="chip" data-nav="prev" style="flex:1;justify-content:center;min-height:${44}px">← ${esc(refLabel(d.b + '.' + (d.c - 1)))}</button>` : ''}
     ${d.c < meta.chapters ? `<button class="chip" data-nav="next" style="flex:1;justify-content:center;min-height:44px">${esc(refLabel(d.b + '.' + (d.c + 1)))} →</button>` : ''}
@@ -252,7 +256,9 @@ function footer() {
     Metadata (Easton's). Translation notes: unfoldingWord (CC BY-SA 4.0).
     Commentary: Matthew Henry, the Geneva notes, Calvin, Poole, Trapp and Spurgeon.
     Cross-references: Treasury of Scripture Knowledge via OpenBible.
-    Translations and commentaries are public domain.
+    Spoken readings: LibriVox, streamed from archive.org.
+    Photographs: Wikimedia Commons. Engravings: Gustave Doré, 1866.
+    Translations, commentaries and readings are public domain.
     <button data-go="about" style="color:var(--accent);padding:8px 0;display:block">
       Full sources, licences, and how to read the chronologies →</button>
   </div>`;
@@ -592,6 +598,12 @@ function applyDisplay() {
 
 function displaySheet() {
   sheet(`<p class="lbl">Reading</p>` + displayPanel() +
+    `<div class="mo" style="margin-top:20px">
+      <p style="font-weight:600;margin:0 0 6px">Or have it read to you</p>
+      <p class="de" style="margin:0">Every chapter has a spoken reading behind the
+      <b>Listen</b> button at the top and bottom of the text. They are public-domain
+      recordings streamed from archive.org, so they need a connection \u2014 the text
+      itself does not.</p></div>` +
     `<button class="more" data-go="offline">Keep it offline \u2014 download the whole Bible \u2192</button>`);
 }
 
@@ -1238,7 +1250,13 @@ function aboutView() {
    ['MACULA', 'Syntactic and semantic annotation of the original text. CC BY 4.0.'],
    ['Matthew Henry, the Geneva notes, Calvin, Poole, Trapp, Spurgeon',
     'Six commentaries written between 1599 and 1885, keyed to the verse. All public domain. A seventh source of patristic quotations was left out: its English translations are described as “19th-century and later”, and anything whose copyright cannot be settled does not belong in a Bible meant to be copied and handed out.'],
-   ['King James, American Standard, Young’s Literal, Darby', 'English translations. All public domain.']
+   ['King James, American Standard, Young’s Literal, Darby', 'English translations. All public domain.'],
+   ['LibriVox, via archive.org',
+    'The spoken readings behind the Listen control — every chapter of all 66 books, read by volunteers and released into the public domain. Nothing is stored here: the files stream from archive.org, so they need a connection even when the text does not.'],
+   ['Wikimedia Commons and Wikidata',
+    'The photographs of the places. Each one carries its own licence and photographer where it appears; none were used that are not free to pass on.'],
+   ['Gustave Doré, 1866',
+    'The 150 engravings set in the text. Doré died in 1883, so the plates have been in the public domain for a century; these scans come from Wikimedia Commons.']
   ].forEach(([t, b]) => o.push(
     `<div class="mo"><p style="font-weight:600;margin:0 0 6px">${esc(t)}</p>
      <p class="de" style="margin:0">${esc(b)}</p></div>`));
