@@ -1,25 +1,47 @@
-                    GNU GENERAL PUBLIC LICENSE
-                       Version 3, 29 June 2007
+Mozilla Public License Version 2.0
+==================================
 
- Copyright (C) 2026 Jeremiah Jarrell
+Copyright (c) 2026 Jeremiah Jarrell
 
- This program is free software: you can redistribute it and/or modify
- it under the terms of the GNU General Public License as published by
- the Free Software Foundation, either version 3 of the License, or
- (at your option) any later version.
+This Source Code Form is subject to the terms of the Mozilla Public License,
+v. 2.0. If a copy of the MPL was not distributed with this file, You can
+obtain one at https://mozilla.org/MPL/2.0/.
 
- This program is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
+SPDX-License-Identifier: MPL-2.0
 
- You should have received a copy of the GNU General Public License
- along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-------------------------------------------------------------------------------
+ACTION REQUIRED BEFORE FIRST PUBLIC RELEASE
+-------------------------------------------------------------------------------
+Replace everything below this line with the full, verbatim text of the
+Mozilla Public License 2.0, downloaded from the canonical source:
 
- The full text of the GNU General Public License version 3 is available at
- https://www.gnu.org/licenses/gpl-3.0.txt and should be included in this
- file in full before the first public release.
+    https://www.mozilla.org/media/MPL/2.0/index.f75d2927d3c4.txt
 
- NOTE ON SCOPE: this licence covers the CODE in this repository.
- The biblical source data carries its own licences, which are listed in
- ATTRIBUTION.md and must travel with any copy of the data.
+A licence file that merely points at a licence is not a licence. Do not
+retype it or paste it from memory - download the official text.
+
+-------------------------------------------------------------------------------
+WHY THIS LICENCE
+-------------------------------------------------------------------------------
+MPL-2.0 is file-level copyleft: anyone who modifies these files must publish
+those modifications, but they may combine this code with differently licensed
+code without relicensing their whole application.
+
+This matters for one concrete reason. The GPL forbids imposing further
+restrictions on users, and Apple's App Store terms impose exactly such
+restrictions. The two are widely held to be incompatible - VLC was removed
+from the App Store in 2011 over this. Choosing GPL here would make an iOS
+release legally untenable. MPL-2.0 keeps the code open while leaving every
+distribution channel available: Play Store, App Store, and a sideloaded APK
+handed to someone directly.
+
+-------------------------------------------------------------------------------
+SCOPE - THIS COVERS CODE ONLY
+-------------------------------------------------------------------------------
+This licence governs the SOURCE CODE in this repository.
+
+The biblical source data is licensed separately by the scholars and
+organisations who created it, principally under CC BY 4.0, and carries its own
+attribution obligations that are not waived or altered by this file.
+
+See ATTRIBUTION.md. Those obligations must travel with any copy of the data.

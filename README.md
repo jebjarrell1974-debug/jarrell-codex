@@ -72,7 +72,7 @@ invented. Regions like Egypt are marked as regions, not as mysteries.
 
 ## Licence
 
-Code is GPL-3.0. The data carries its own licences and its own obligations —
+Code is **MPL-2.0**. The data carries its own licences and its own obligations —
 see **[ATTRIBUTION.md](ATTRIBUTION.md)**, which must travel with any copy.
 
 Built on the generosity of scholars who gave their work away: Tyndale House

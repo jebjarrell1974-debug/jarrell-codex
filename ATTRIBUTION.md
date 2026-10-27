@@ -36,8 +36,8 @@ the data.**
   build time rather than vendoring their files, which respects that.
 - **Share-alike spreads.** Anything brought in under CC BY-SA — unfoldingWord
   translation notes, Perseus LSJ — obliges derivative work under the same
-  licence. That is compatible with this project being free and open source,
-  and is a deliberate choice, but it is a one-way door.
+  licence for the DATA. That is a deliberate choice and is independent of the
+  code licence, but it is a one-way door.
 - **Audio is not in this repository.** Faith Comes By Hearing's Bible Brain
   conditions its key on end users accessing content completely free of charge
   and on operating in accordance with their Statement of Faith. Read the DBP
