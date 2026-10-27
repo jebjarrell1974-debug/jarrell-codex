@@ -1,0 +1,65 @@
+
+=== Hebrew - Genesis 1:1 first word  (Gen.1.1 word 1) ====================
+  surface      בְּ/רֵאשִׁ֖ית
+  translit     be./re.Shit
+  gloss        in/ beginning
+  [PASS] Hebrew - Genesis 1:1 first word: token exists  id=Gen.1.1#001@L
+  [PASS] Hebrew - Genesis 1:1 first word: has morphemes  2 morpheme(s)
+   - [0] בְּ  H9003  HR
+       parsing    Function=Preposition
+       lexicon    /ב = in/on/with
+       definition Prefix beth: in, among, with,
+       concordance 15,781 occurrence(s) of H9003 in the corpus
+   - [1] רֵאשִׁ֖ית  H7225G  HNcfsa
+       parsing    Function=Noun ; Form=Common ; Gender=Feminine; Number=Singular; State=Absolute
+       lexicon    רֵאשִׁית = first: beginning
+       definition : beginning | 1) first, beginning, best, chief | 1a) beginning | 1b) first | 1c) chief | 1d) choice part [...]
+       concordance 41 occurrence(s) of H7225G in the corpus
+  [PASS] Hebrew - Genesis 1:1 first word: every morpheme parsed
+  [PASS] Hebrew - Genesis 1:1 first word: every morpheme has a lexicon entry
+  [PASS] Hebrew - Genesis 1:1 first word: concordance returns occurrences
+   ASV    In the beginning God created the heavens and the earth.
+   Darby  In the beginningGod created the heavens and the earth.
+   KJV    In the beginning God created the heaven and the earth.
+   YLT    In the beginning of God's preparing the heavens and the earth--
+  [PASS] Hebrew - Genesis 1:1 first word: English translations present  4 translations
+
+=== Greek - John 1:1 first word  (Jhn.1.1 word 1) ====================
+  surface      Ἐν
+  translit     En
+  gloss        In [the]
+  [PASS] Greek - John 1:1 first word: token exists  id=Jhn.1.1#001@NKO
+  [PASS] Greek - John 1:1 first word: has morphemes  1 morpheme(s)
+   - [0] Ἐν  G1722  PREP
+       parsing    Function=Preposition
+       lexicon    ἐν = in/on/among
+       definition ἐν, | prep, (the most frequently of all in NT), with dative (= Heb. בְּ, Lat. in, with abl.). | __I. Of [...]
+       concordance 2,842 occurrence(s) of G1722 in the corpus
+  [PASS] Greek - John 1:1 first word: every morpheme parsed
+  [PASS] Greek - John 1:1 first word: every morpheme has a lexicon entry
+  [PASS] Greek - John 1:1 first word: concordance returns occurrences
+   ASV    In the beginning was the Word, and the Word was with God, and the Word was God.
+   Darby  In [the] beginning was the Word, and the Word was withGod, and the Word wasGod.
+   KJV    In the beginning was the Word, and the Word was with God, and the Word was God.
+   YLT    In the beginning was the Word, and the Word was with God, and the Word was God;
+  [PASS] Greek - John 1:1 first word: English translations present  4 translations
+
+=== versification ==================================
+  [PASS] KJV 2Co.13:14 maps to the Greek verse key  KJV 2Co.13.14 -> canonical 2Co.13.13
+  [PASS] every translation verse resolves to a canonical key  0 unresolved
+  [PASS] Hebrew-vs-English numbering retained on tokens  Gen.32.1 carries Hebrew ref 32.2
+
+=== integrity ======================================
+  tokens             447,744
+  [PASS] tokens == 447,744
+  morphemes          682,818
+  verses             31,219
+  [PASS] verses == 31,219
+  lexicon entries    21,232
+  morph codes        2,566
+  [PASS] no orphan morphemes  0 orphans
+  [PASS] no orphan tokens  0 orphans
+  [PASS] no unresolved morphology codes  0 unresolved
+
+========================================================
+RESULT: 20 passed, 0 failed

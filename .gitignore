@@ -1,0 +1,8 @@
+# Source datasets are cloned by the build, never committed.
+sources/
+# The database is a build artifact. Rebuild it with scripts/build_all.sh,
+# or download it from a Release.
+build/*.db
+build/*.db-journal
+*.pyc
+__pycache__/
