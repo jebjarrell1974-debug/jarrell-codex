@@ -199,3 +199,10 @@ figure img{max-width:100%}
 .sw-chip{width:46px;height:46px;border-radius:8px;border:1px solid var(--line);
   display:flex;align-items:center;justify-content:center;font-size:var(--t4)}
 .sw-name{font-size:var(--t1);text-align:center;line-height:1.3}
+
+/* ---- Dore's engravings, set in the text ------------------------------- */
+.plate{margin:22px 0;padding:0}
+.plate img{width:100%;height:auto;display:block;border-radius:8px;
+  background:var(--line-soft)}
+.plate figcaption{font-size:var(--t1);color:var(--ink-soft);
+  margin-top:8px;line-height:1.45}

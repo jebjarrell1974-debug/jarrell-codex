@@ -7,7 +7,7 @@ const S = {
   books: [], names: {}, bookIx: {},
   morph: {}, chron: null, order: null,
   place: null, person: null, event: null, dictIx: null, cmMeta: null, pix: null,
-  man: null, dlTiers: {},
+  man: null, dlTiers: {}, dore: null, showPix: true,
   fs: 19, scheme: 'paper', schemes: null,
   lex: {}, conc: {}, idx: {},
   book: 'Jhn', ch: 3,
@@ -72,7 +72,8 @@ const lazy = {
   event: () => S.event || get('event.json').then(d => S.event = d),
   dictIx: () => S.dictIx || get('dict_index.json').then(d => S.dictIx = d),
   cmMeta: () => S.cmMeta || get('commentary.json').then(d => S.cmMeta = d),
-  pix: () => S.pix || get('pix_manifest.json').then(d => S.pix = d)
+  pix: () => S.pix || get('pix_manifest.json').then(d => S.pix = d),
+  dore: () => S.dore || get('dore.json').then(d => S.dore = d)
 };
 
 /* ------------------------------------------------------------- references */
@@ -150,6 +151,7 @@ async function openChapter(book, ch, scrollToVerse) {
   $('#ref').textContent = refLabel(book + '.' + ch);
   $('#view').innerHTML = '<p class="load">Loading…</p>';
   let d;
+  if (S.showPix && !S.dore) await lazy.dore().catch(() => { S.dore = null; });
   try { d = await get(`ch/${book}.${ch}.json`); }
   catch {
     $('#view').innerHTML = `<p class="load">That chapter would not load.
@@ -204,6 +206,20 @@ function renderChapter(scrollToVerse) {
     if (ch.length) out.push(`<div class="chips">${ch.join('')}</div>`);
     out.push('</div>');
     if (para) out.push('<div class="para" aria-hidden="true"></div>');
+    if (S.showPix && S.dore) {
+      ((S.dore.at || {})[`${d.b}.${d.c}.${v.n}`] || []).forEach(pid => {
+        const pl = (S.dore.plates || {})[pid];
+        if (!pl) return;
+        out.push(`<figure class="plate">
+          <img src="data/dore/${esc(pl.file)}" alt="${esc(pl.title)}, engraved by Gustave Dor\u00e9"
+            width="${pl.w}" height="${pl.h}" loading="lazy" decoding="async">
+          <figcaption>${esc(pl.title)}${
+            pl.ref ? ` <span class="ot">${esc(pl.ref)}</span>` : ''}
+            <span class="ot" style="display:block;margin-top:3px">Gustave Dor\u00e9, 1866${
+            pl.page ? ` \u00b7 <a href="${esc(pl.page)}" target="_blank" rel="noopener">source</a>` : ''
+            }</span></figcaption></figure>`);
+      });
+    }
   });
 
   if (d.cmc) out.push(`<div style="margin:20px 0 0"><button class="chip cm"
@@ -594,6 +610,15 @@ function displayPanel() {
      padding:12px;margin:0 0 6px">For God so loved the world, that he gave his
      only begotten Son.</p>
   <p class="ot" style="margin:0 0 18px">That is how a verse will look.</p>
+
+  <p class="lbl">Pictures</p>
+  <button class="opt ${S.showPix ? 'on' : ''}" data-setpix="1" style="margin-bottom:6px">${
+    S.showPix ? '\u2713 Showing the engravings in the text'
+              : 'Engravings hidden \u2014 words only'}</button>
+  <p class="pa" style="margin:0 0 18px">Gustave Dor\u00e9 engraved these in 1866.
+    They are one Victorian artist's reading of the scene, not a photograph
+    and not evidence \u2014 but he was very good, and they sit where the text
+    puts them.</p>
 
   <p class="lbl">Colour</p>
   <div class="swatches">
@@ -1177,7 +1202,8 @@ function save() {
   try {
     localStorage.setItem('codex', JSON.stringify(
       { tx: S.tx, scheme: S.scheme, pron: S.pron, showOrig: S.showOrig,
-        book: S.book, ch: S.ch, fs: S.fs, scheme: S.scheme }));
+        book: S.book, ch: S.ch, fs: S.fs, scheme: S.scheme,
+        showPix: S.showPix }));
   } catch { /* private mode, blocked storage — settings just don't persist */ }
 }
 function load() {
@@ -1190,7 +1216,8 @@ function load() {
       showOrig: v.showOrig !== false,
       book: v.book || S.book, ch: v.ch || S.ch,
       fs: Math.min(FS_MAX, Math.max(FS_MIN, +v.fs || S.fs)),
-      scheme: SCHEME_ORDER.indexOf(v.scheme) >= 0 ? v.scheme : S.scheme
+      scheme: SCHEME_ORDER.indexOf(v.scheme) >= 0 ? v.scheme : S.scheme,
+      showPix: v.showPix !== false
     });
   } catch { /* ignore */ }
 }
@@ -1221,7 +1248,7 @@ function route() {
 
 /* ========================================================= event wiring */
 document.addEventListener('click', ev => {
-  const t = ev.target.closest('[data-go2],[data-fs],[data-setscheme3],[data-settx],[data-setpron],[data-setscheme],[data-setscheme2],[data-tier],[data-dlstart],[data-dlstop],[data-dlclear],[data-cmf],[data-close],[data-v][data-t],[data-k],[data-ref],[data-conc],[data-dict],[data-book],[data-ch],[data-nav],[data-go],[data-tab],[data-expand]');
+  const t = ev.target.closest('[data-setpix],[data-go2],[data-fs],[data-setscheme3],[data-settx],[data-setpron],[data-setscheme],[data-setscheme2],[data-tier],[data-dlstart],[data-dlstop],[data-dlclear],[data-cmf],[data-close],[data-v][data-t],[data-k],[data-ref],[data-conc],[data-dict],[data-book],[data-ch],[data-nav],[data-go],[data-tab],[data-expand]');
   if (!t) return;
 
   if (t.dataset.close) return closeSheet();
@@ -1246,6 +1273,11 @@ document.addEventListener('click', ev => {
   if (t.dataset.setpron)    { S.pron = t.dataset.setpron; save(); settingsSheet(); return; }
   if (t.dataset.setscheme)  { S.scheme = t.dataset.setscheme; save(); settingsSheet(); return; }
   if (t.dataset.setscheme2) { S.scheme = t.dataset.setscheme2; save(); chronoView(); return; }
+  if (t.dataset.setpix) {
+    S.showPix = !S.showPix;
+    save(); renderChapter(); displaySheet();
+    return;
+  }
   if (t.dataset.setscheme3) {
     S.scheme = t.dataset.setscheme3;
     applyDisplay(); save(); displaySheet();
