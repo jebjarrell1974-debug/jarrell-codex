@@ -1105,7 +1105,7 @@ async function platesView() {
    from verse counts, not a timing anyone recorded, and it is labelled as
    one every time it is offered. */
 
-const AU = { fi: null, key: null, seek: null };
+const AU = { fi: null, key: null, seek: null, wired: false };
 
 function auEl() { return document.getElementById('plAudio'); }
 
@@ -1197,11 +1197,41 @@ async function listen(book, ch) {
     el.addEventListener('loadedmetadata', auSeek, { once: true });
   }
   auSession(key, f, src);
+
+  // An audio Bible that stops dead at the end of Genesis 14 and waits to be
+  // asked is not much use to someone listening with the phone down. The
+  // files are in canonical order, so carry on into the next one and say in
+  // the bar where it has got to.
+  if (!AU.wired) {
+    AU.wired = true;
+    el.addEventListener('ended', auNext);
+  }
   el.play().catch(() => {
     const e = document.getElementById('plEst');
     if (!navigator.onLine) return;
     if (e) e.textContent = 'Press play to start.';
   });
+}
+
+/** The next file in canonical order, when one ends. */
+async function auNext() {
+  const a = S.audio;
+  if (!a || AU.fi == null) return;
+  const next = a.files[AU.fi + 1];
+  if (!next) {
+    const note = document.getElementById('plNote');
+    if (note) note.innerHTML = '<span class="pl-line">That is the end of ' +
+      'Revelation, and the end of the readings.</span>';
+    return;
+  }
+  const key = next.ch[0];
+  const p = key.split('.');
+  AU.fi = null;                       // force a reload of the new file
+  await listen(p[0], +p[1]);
+  const note = document.getElementById('plNote');
+  if (note) note.insertAdjacentHTML('afterbegin',
+    '<span class="pl-line">The last reading finished, so this one carried ' +
+    'on from it.</span>');
 }
 
 /* The lock screen is the only control a listener has once the phone is in

@@ -27,6 +27,13 @@ def chk(name, cond, detail=''):
         fails.append(name + ' :: ' + str(detail)[:300])
 
 
+def refname(key):
+    """Gen.1 -> "Genesis 1", using the same names the page uses."""
+    code, ch = key.split('.')[0], key.split('.')[1]
+    nm = BOOKS['names'].get(code) or [code]
+    return (nm[1] if len(nm) > 1 and nm[1] else nm[0]) + ' ' + ch
+
+
 def fraction(f, i):
     total = sum(f['vs'])
     return sum(f['vs'][:i]) / total if total and i > 0 else 0.0
@@ -51,6 +58,32 @@ lic = {s.get('licence', '') for s in A['sources'].values()}
 chk('every source is public domain',
     all('publicdomain' in l for l in lic), sorted(lic))
 # verse counts must match the chapters the reader actually gets
+# The "covers Genesis 1-14" label, the verse-count fraction and carrying on
+# into the next reading all assume the files tile the canon: each one a
+# contiguous run, in order, with no gap and no overlap. If a per-book
+# recording ever won a chapter in the middle of a complete-set file, that
+# file would cover 1-4 and 6-14 while still claiming 1-14.
+order = [b[0] for b in BOOKS['books']]
+seq = [f'{c}.{n}' for c in order for n in range(1, nch[c] + 1)]
+pos = {k: i for i, k in enumerate(seq)}
+holey = []
+for f in A['files']:
+    ps = [pos[k] for k in f['ch']]
+    if ps != list(range(ps[0], ps[0] + len(ps))):
+        holey.append((f['ch'][0], f['ch'][-1]))
+chk('every file is one unbroken run of chapters', not holey, holey[:5])
+starts = [pos[f['ch'][0]] for f in A['files']]
+chk('the files are in canonical order', starts == sorted(starts))
+breaks = [(A['files'][i]['ch'][-1], A['files'][i + 1]['ch'][0])
+          for i in range(len(A['files']) - 1)
+          if pos[A['files'][i + 1]['ch'][0]] != pos[A['files'][i]['ch'][-1]] + 1]
+chk('and they meet end to end, with no gap and no overlap', not breaks,
+    breaks[:5])
+chk('the first is Genesis 1', A['files'][0]['ch'][0] == 'Gen.1',
+    A['files'][0]['ch'][0])
+chk('the last is Revelation 22', A['files'][-1]['ch'][-1] == 'Rev.22',
+    A['files'][-1]['ch'][-1])
+
 mis = []
 for f in A['files'][:40]:
     for k, v in zip(f['ch'], f['vs']):
@@ -240,6 +273,29 @@ async def main():
         chk('it says the readings are streamed', 'streamed' in note.lower(), note)
         chk('and that the text itself still works',
             'still works offline' in note.lower(), note)
+
+        print('\ncarrying on into the next reading')
+        await listen('#/Gen.1')
+        fi0, _ = A['chapters']['Gen.1']
+        nxt = A['files'][fi0 + 1]
+        await pg.evaluate(
+            "() => document.getElementById('plAudio')"
+            ".dispatchEvent(new Event('ended'))")
+        await pg.wait_for_function(
+            "u => document.getElementById('plAudio').src !== u",
+            arg=A['files'][fi0]['u'], timeout=15000)
+        await pg.wait_for_timeout(700)
+        chk('it moves to the next file',
+            await pg.get_attribute('#plAudio', 'src') == nxt['u'],
+            await pg.get_attribute('#plAudio', 'src'))
+        txt = await pg.inner_text('#plTxt')
+        want = refname(nxt['ch'][0])
+        chk(f'and the bar names {want}', want in txt, txt)
+        note = await pg.inner_text('#plNote')
+        chk('and says it carried on rather than being asked',
+            'carried on from it' in note, note[:200])
+        await pg.click('#plX')
+        await pg.wait_for_timeout(200)
 
         print('\nthe lock screen')
         # Once the phone is in a pocket, the lock screen is the only control
