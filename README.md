@@ -29,6 +29,7 @@ to pay to read the Bible in its own language.
 | **Events** | A 450-event timeline, linked to 17,570 verses |
 | **Dictionary** | Easton's 1897, 6,519 senses across 3,964 headwords, 2,818 tied to a named person |
 | **Chronology** | Six dated schemes you choose between, never one silently assumed |
+| **Context** | 108,925 historical, cultural and linguistic notes across 93% of verses |
 
 ## The idea in one sentence
 
@@ -49,14 +50,14 @@ About four minutes. Needs `python3` and `git`, nothing else — no frameworks,
 no package installs. Sources are cloned fresh and pinned by commit hash and
 SHA-256 in `build/manifest.json`, so a rebuild is reproducible down to the byte.
 
-The database is a build artifact and is not committed. 226 MB on disk,
-about 60 MB compressed — an ordinary app download, which is why the whole
+The database is a build artifact and is not committed. 287 MB on disk,
+about 75 MB compressed — an ordinary app download, which is why the whole
 thing ships inside the app instead of needing a server.
 
 ## Is it right?
 
 `scripts/09_acceptance.py` and `scripts/12_acceptance_run2.py` prove the thing
-works before anything is built on it: 46 checks, 0 failures. It walks the first word of Genesis 1:1 and of
+works before anything is built on it: 59 checks, 0 failures. It walks the first word of Genesis 1:1 and of
 John 1:1 through all five layers, confirms the versification actually
 reconciles (KJV 2 Corinthians 13:14 resolves to the Greek 13:13), and refuses
 to pass on orphan rows or unresolved morphology.

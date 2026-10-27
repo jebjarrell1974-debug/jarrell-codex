@@ -24,6 +24,11 @@
       "commit": "744355c7a5f38efd407bc67a5257c99aca9532bc",
       "committed": "2026-10-22T20:49:45-05:00",
       "origin": "https://github.com/robertrouse/theographic-bible-metadata.git"
+    },
+    "uw_tn": {
+      "commit": "e9fe4d147302879e6290a2a44ba3c7331e22750f",
+      "committed": "2026-10-27T05:35:38+00:00",
+      "origin": "https://git.door43.org/unfoldingWord/en_tn.git"
     }
   },
   "files": {

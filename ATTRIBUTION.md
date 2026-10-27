@@ -12,6 +12,9 @@ the data.**
 > Syntax and linguistic data from **Clear Bible, Inc.** — MACULA (CC BY 4.0).
 > Place data from **OpenBible.info** Bible Geocoding Data (CC BY 4.0).
 > People, events and dictionary data from **Theographic Bible Metadata**.
+> Translation notes: the original work by unfoldingWord is available from
+> [unfoldingword.org/utn](https://www.unfoldingword.org/utn), used under CC BY-SA 4.0
+> and modified as described below.
 
 ## Sources
 
@@ -27,6 +30,7 @@ the data.**
 | OpenScriptures WLC (via MACULA) | Independent cross-check | CC BY 4.0 |
 | OpenBible.info Bible Geocoding Data | Places, coordinates, confidence | CC BY 4.0 |
 | Theographic Bible Metadata | People, events timeline, Easton's dictionary | CC BY-SA 4.0 |
+| unfoldingWord translationNotes | 108,925 verse-level historical, cultural and linguistic notes | CC BY-SA 4.0 |
 | Easton's Bible Dictionary (1897) | Dictionary entries | Public domain |
 | KJV, ASV, Darby, Young's Literal | English translations | Public domain |
 
@@ -37,10 +41,27 @@ the data.**
 - **STEPBible asks that you point people to github.com/STEPBible for the data
   rather than redistributing it yourself.** This build clones from source at
   build time rather than vendoring their files, which respects that.
-- **Share-alike spreads.** Anything brought in under CC BY-SA — unfoldingWord
-  translation notes, Perseus LSJ — obliges derivative work under the same
-  licence for the DATA. That is a deliberate choice and is independent of the
-  code licence, but it is a one-way door.
+- **Share-alike now applies to the data.** The translation notes and the
+  Theographic data are CC BY-SA 4.0, so this project's **data** is share-alike
+  and any redistribution of it must carry the same licence. The **code**
+  licence (MPL-2.0) is separate and unaffected. This was a deliberate choice,
+  and it is a one-way door.
+
+## unfoldingWord's specific conditions
+
+Their licence asks for three things beyond ordinary attribution, and all three
+apply here because the notes are modified on ingest:
+
+1. **State the changes.** The notes are reformatted, not rewritten. Escaped
+   newlines are expanded; `rc://` links into unfoldingWord's own site, and the
+   "(See: …)" trailers built from them, are removed because the pages they
+   point at are not shipped with this app; `[[...]]` wrappers are unwrapped.
+   No wording is altered. See `scripts/17_notes.py`.
+2. **Licence the derivative alike.** The notes and anything derived from them
+   remain CC BY-SA 4.0.
+3. **Remove the unfoldingWord trademark from derivative work.** The name is
+   used here only to credit the source, as their licence requires, and does
+   not appear as branding on the app.
 - **Audio is not in this repository.** Faith Comes By Hearing's Bible Brain
   conditions its key on end users accessing content completely free of charge
   and on operating in accordance with their Statement of Faith. Read the DBP

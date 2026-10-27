@@ -1,0 +1,25 @@
+=== coverage ======================================
+  [PASS] notes loaded  108,925 notes
+  [PASS] every book of the canon covered  66 books
+  [PASS] most verses carry at least one note  29,120/31,219 verses (93.3%)
+
+=== integrity =====================================
+  [PASS] every verse note resolves to a canonical verse  0 unresolved
+  [PASS] no empty notes  0 empty
+  [PASS] every note records its source  0 missing
+
+=== shape =========================================
+  [PASS] book introductions kept separate from verse notes  66 book intros
+  [PASS] chapter introductions kept separate  1,143 chapter intros
+  [PASS] notes carry the original-language words they discuss  107,375 with a quote
+  [PASS] internal rc:// links cleaned out of note text  0 remaining
+
+=== it actually reads =============================
+  [PASS] Acts 17:22 explains the Areopagus by name  As in [17:19](../17/19.md), Luke uses the word **Areopagus** by [...]
+  [PASS] Genesis 1:1 carries a substantive note  647 chars
+
+=== licence =======================================
+  [PASS] share-alike licence recorded on every note  108,925/108,925
+
+========================================================
+RESULT: 13 passed, 0 failed
