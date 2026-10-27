@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -47,7 +49,7 @@ android {
     // read the code. See README: creating the key is a one-way door, because
     // the SAME key must sign every release forever or existing installs
     // cannot update, and Android gives no way to change it afterwards.
-    val keyProps = java.util.Properties().apply {
+    val keyProps = Properties().apply {
         val f = rootProject.file("keystore.properties")
         if (f.exists()) f.inputStream().use { load(it) }
     }
