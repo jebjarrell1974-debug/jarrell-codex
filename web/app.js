@@ -7,6 +7,7 @@ const S = {
   books: [], names: {}, bookIx: {},
   morph: {}, chron: null, order: null,
   place: null, person: null, event: null, dictIx: null, cmMeta: null,
+  man: null, dlTiers: {},
   lex: {}, conc: {}, idx: {},
   book: 'Jhn', ch: 3,
   tx: 'KJV', scheme: 'jones', showOrig: true, pron: 'erasmian'
@@ -513,6 +514,137 @@ function xrefSheet(vi) {
   sheet(o.join(''));
 }
 
+/* =========================================================== offline save */
+/* Caching only what somebody happens to open is no use to a person about to
+   lose signal for a week. This pulls the lot down while there is wifi. The
+   service worker caches anything fetched from data/, so downloading here is
+   simply fetching it - no second code path to keep in step. */
+let DL = null;        // { stop, done, total, failed }
+
+const MB = b => (b / 1048576).toFixed(b >= 104857600 ? 0 : 1) + ' MB';
+
+async function offlineView() {
+  let man;
+  try { man = S.man || (S.man = await get('offline_manifest.json')); }
+  catch { $('#view').innerHTML = '<p class="load">Could not load the file list.</p>'; return; }
+
+  let est = null, persisted = false;
+  try { est = await navigator.storage.estimate(); } catch { /* not offered */ }
+  try { persisted = await navigator.storage.persisted(); } catch { /* ditto */ }
+
+  const o = [];
+  o.push('<h1 style="font-size:1.3rem;margin:6px 0 2px">Keep it offline</h1>');
+  o.push(`<p class="ot" style="margin:0 0 14px">Download it now, read it
+    anywhere — no signal, no data, no account.</p>`);
+  o.push(`<p class="de">Chapters you open are already kept. This takes the rest,
+    so nothing is missing when the signal goes. Best done on wifi.</p>`);
+
+  const keys = Object.keys(man.tiers);
+  o.push('<div style="margin-top:18px">');
+  keys.forEach(k => {
+    const t = man.tiers[k];
+    const on = S.dlTiers[k] !== false;
+    o.push(`<button data-tier="${esc(k)}" style="display:block;width:100%;
+      text-align:left;border:1px solid ${on ? 'var(--accent)' : 'var(--line)'};
+      border-radius:10px;padding:14px;margin:0 0 10px;color:inherit;
+      background:${on ? 'var(--accent-soft)' : 'var(--surface)'}">
+      <span style="display:flex;justify-content:space-between;gap:10px;align-items:baseline">
+        <span style="font-weight:600">${on ? '✓ ' : ''}${esc(t.label)}</span>
+        <span class="ot">${esc(MB(t.bytes))}</span></span>
+      <span class="de" style="display:block;margin-top:6px;color:var(--ink-soft)">${esc(t.note)}</span>
+    </button>`);
+  });
+  o.push('</div>');
+
+  const chosen = keys.filter(k => S.dlTiers[k] !== false);
+  const bytes = chosen.reduce((n, k) => n + man.tiers[k].bytes, 0);
+  const files = chosen.reduce((n, k) => n + man.tiers[k].count, 0);
+
+  if (DL) {
+    const pct = DL.total ? Math.round(100 * DL.done / DL.total) : 0;
+    o.push(`<div class="mo"><p style="font-weight:600;margin:0 0 8px">Downloading — ${pct}%</p>
+      <div style="height:6px;border-radius:3px;background:var(--line);overflow:hidden">
+        <div style="height:100%;width:${pct}%;background:var(--accent)"></div></div>
+      <p class="oc" style="margin-top:8px">${DL.done.toLocaleString()} of
+        ${DL.total.toLocaleString()} files${DL.failed ? ` · ${DL.failed} could not be fetched` : ''}</p>
+      <button class="more" data-dlstop="1">Stop</button></div>`);
+  } else {
+    o.push(`<button class="chip" data-dlstart="1" style="min-height:48px;
+      padding:12px 18px;border-color:var(--accent);color:var(--accent);
+      font-size:.95rem;margin-top:4px">
+      Download ${esc(MB(bytes))} · ${files.toLocaleString()} files</button>`);
+    if (!chosen.length) o.push('<p class="pa">Nothing selected.</p>');
+  }
+
+  if (est && est.usage != null) {
+    o.push(`<p class="lbl" style="margin:22px 0 6px">Already on this phone</p>`);
+    o.push(`<p class="de">${esc(MB(est.usage))} stored${
+      est.quota ? ` of roughly ${esc(MB(est.quota))} this browser allows` : ''}.</p>`);
+  }
+  o.push(`<p class="pa">${persisted
+    ? 'The browser has agreed to keep this and not clear it to make room.'
+    : 'A browser may clear downloads when it runs short of space. Adding this page to your home screen makes that much less likely.'}</p>`);
+  o.push(`<button class="more" data-dlclear="1">Delete the downloads</button>`);
+  o.push(footer());
+  $('#view').innerHTML = o.join('');
+  window.scrollTo(0, 0);
+}
+
+async function startDownload() {
+  const man = S.man;
+  if (!man || DL) return;
+  try { await navigator.storage.persist(); } catch { /* best effort */ }
+  const urls = [];
+  Object.keys(man.tiers).forEach(k => {
+    if (S.dlTiers[k] === false) return;
+    man.tiers[k].files.forEach(f => urls.push(f[0]));
+  });
+  DL = { stop: false, done: 0, total: urls.length, failed: 0 };
+  await offlineView();
+
+  let i = 0, painted = 0;
+  const worker = async () => {
+    while (!DL.stop) {
+      const n = i++;
+      if (n >= urls.length) return;
+      try {
+        const r = await fetch(urls[n], { cache: 'no-store' });
+        if (!r.ok) throw new Error(String(r.status));
+        await r.arrayBuffer();           // drain it so the worker stores it
+      } catch (e) { DL.failed++; }
+      DL.done++;
+      // repaint now and then, not 3,476 times
+      if (DL.done - painted > 25 || DL.done === DL.total) {
+        painted = DL.done;
+        if (location.hash.indexOf('offline') >= 0) offlineView();
+      }
+    }
+  };
+  await Promise.all([worker(), worker(), worker(), worker(), worker(), worker()]);
+
+  const failed = DL.failed, stopped = DL.stop, done = DL.done;
+  DL = null;
+  if (location.hash.indexOf('offline') >= 0) {
+    await offlineView();
+    const msg = stopped
+      ? `Stopped after ${done.toLocaleString()} files. What came down is kept — start again any time and it picks up the rest.`
+      : failed
+        ? `Finished, but ${failed.toLocaleString()} file${failed === 1 ? '' : 's'} could not be fetched. Run it again on a better connection.`
+        : 'Done. The whole thing is on this phone now.';
+    $('#view').insertAdjacentHTML('afterbegin',
+      `<p class="de" style="border:1px solid var(--good);color:var(--good);
+        border-radius:10px;padding:12px;margin:0 0 14px">${esc(msg)}</p>`);
+  }
+}
+
+async function clearDownloads() {
+  try {
+    const ks = await caches.keys();
+    await Promise.all(ks.filter(k => k.indexOf('data') >= 0).map(k => caches.delete(k)));
+  } catch (e) { /* nothing to clear */ }
+  offlineView();
+}
+
 /* ============================================================= commentary */
 let CMF = 'all';                       // source filter inside the sheet
 
@@ -919,7 +1051,8 @@ function settingsSheet() {
   o.push(`<label class="lbl" style="margin-top:16px">Original language</label>
     <button class="chip" id="origTgl" style="margin-top:4px">${S.showOrig ?
       '✓ showing Hebrew / Greek' : 'hidden — English only'}</button>`);
-  o.push(`<button class="more" data-go="about" style="margin-top:22px">About, sources and licences →</button>`);
+  o.push(`<button class="more" data-go="offline" style="margin-top:22px">Keep it offline — download the whole Bible →</button>`);
+  o.push(`<button class="more" data-go="about">About, sources and licences →</button>`);
   sheet(o.join(''));
   $('#txSel').onchange = e => { S.tx = e.target.value; save(); renderChapter(); };
   $('#prSel').onchange = e => { S.pron = e.target.value; save(); settingsSheet(); };
@@ -959,6 +1092,7 @@ function route() {
   $('#btnSearch').classList.toggle('on', h.startsWith('search'));
   if (!h) { go('#/' + S.book + '.' + S.ch, true); return; }
   if (h === 'chrono') { $('#ref').textContent = 'Chronology'; return chronoView(); }
+  if (h === 'offline') { $('#ref').textContent = 'Offline'; return offlineView(); }
   if (h === 'about')  { $('#ref').textContent = 'About';      return aboutView(); }
   if (h.startsWith('search')) {
     const q = (h.split('?q=')[1] || '').replace(/\+/g, ' ');
@@ -972,7 +1106,7 @@ function route() {
 
 /* ========================================================= event wiring */
 document.addEventListener('click', ev => {
-  const t = ev.target.closest('[data-cmf],[data-close],[data-v][data-t],[data-k],[data-ref],[data-conc],[data-dict],[data-book],[data-ch],[data-nav],[data-go],[data-tab],[data-expand]');
+  const t = ev.target.closest('[data-tier],[data-dlstart],[data-dlstop],[data-dlclear],[data-cmf],[data-close],[data-v][data-t],[data-k],[data-ref],[data-conc],[data-dict],[data-book],[data-ch],[data-nav],[data-go],[data-tab],[data-expand]');
   if (!t) return;
 
   if (t.dataset.close) return closeSheet();
@@ -987,6 +1121,14 @@ document.addEventListener('click', ev => {
     t.classList.add('sel');
     return void wordSheet(+t.dataset.v, +t.dataset.t);
   }
+  if (t.dataset.tier) {
+    const k = t.dataset.tier;
+    S.dlTiers[k] = S.dlTiers[k] === false;
+    return void offlineView();
+  }
+  if (t.dataset.dlstart) return void startDownload();
+  if (t.dataset.dlstop)  { if (DL) DL.stop = true; return; }
+  if (t.dataset.dlclear) return void clearDownloads();
   if (t.dataset.cmf) {
     CMF = t.dataset.cmf;
     return void (CMV == null ? cmChapterSheet() : cmSheet(CMV));
