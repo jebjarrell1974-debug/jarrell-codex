@@ -632,10 +632,12 @@ function displayPanel() {
   <button class="opt ${S.showPix ? 'on' : ''}" data-setpix="1" style="margin-bottom:6px">${
     S.showPix ? '\u2713 Showing the engravings in the text'
               : 'Engravings hidden \u2014 words only'}</button>
-  <p class="pa" style="margin:0 0 18px">Gustave Dor\u00e9 engraved these in 1866.
+  <p class="pa" style="margin:0 0 6px">Gustave Dor\u00e9 engraved these in 1866.
     They are one Victorian artist's reading of the scene, not a photograph
     and not evidence \u2014 but he was very good, and they sit where the text
     puts them.</p>
+  <button class="more" data-go="plates" style="margin:0 0 18px">See all 150
+    engravings \u2192</button>
 
   <p class="lbl">Colour</p>
   <div class="swatches">
@@ -691,6 +693,11 @@ async function offlineView() {
     anywhere — no signal, no data, no account.</p>`);
   o.push(`<p class="de">Chapters you open are already kept. This takes the rest,
     so nothing is missing when the signal goes. Best done on wifi.</p>`);
+  o.push(`<p class="pa" style="margin:10px 0 0">One thing cannot be kept: the
+    spoken readings. They are 2.5&nbsp;GB of recordings held by archive.org and
+    they stream from there, so <b>Listen</b> needs a connection even after you
+    have downloaded everything below. Every word of the text, and every
+    picture, works with no signal at all.</p>`);
 
   const keys = Object.keys(man.tiers);
   o.push('<div style="margin-top:18px">');
@@ -1015,6 +1022,76 @@ async function searchDict(ts, box) {
 }
 
 
+
+/* =============================================================== plates */
+/* All 150 of Dore's engravings, in the order he published them, with an
+   honest account of each one.
+
+   125 sit at a verse in the text. 20 illustrate Tobit, Judith, Baruch, the
+   Greek additions to Daniel and the Maccabees, which this Bible does not
+   carry - they are shown here rather than dropped, because the reader is
+   entitled to see what the set contains and to be told why those plates
+   are not in the text. Five carry no reference at all: Commons records
+   none, and rather than guess a verse from the title they are listed as
+   what they are. Dore's own numbering puts each one where it belongs in
+   the sequence, which is the only placement anyone can vouch for. */
+
+async function platesView() {
+  if (!S.dore) { try { await lazy.dore(); } catch { S.dore = null; } }
+  if (!S.dore) {
+    $('#view').innerHTML = `<p class="load">The list of engravings would not load.
+      If you are offline, download the engravings from the offline page first.</p>`;
+    return;
+  }
+  const d = S.dore;
+  const where = {};
+  Object.keys(d.at || {}).forEach(vk => (d.at[vk] || []).forEach(pid => where[pid] = vk));
+  const apoc = d.apoc || {};
+  const ids = Object.keys(d.plates || {}).sort((a, b) => (+a) - (+b));
+  const placed = ids.filter(k => where[k]).length;
+  const outside = ids.filter(k => !where[k] && apoc[k]).length;
+  const nowhere = ids.length - placed - outside;
+
+  const o = [];
+  o.push(`<h1 style="font-size:1.3rem;margin:6px 0 2px">Dor\u00e9's engravings</h1>`);
+  o.push(`<p class="ot" style="margin:0 0 14px">${ids.length} plates, engraved in 1866
+    &middot; all public domain</p>`);
+  o.push(`<p class="de">Gustave Dor\u00e9 cut these for an illustrated Bible published
+    in 1866. He died in 1883, so they have been free for anyone to use for a
+    century. They are one Victorian artist's reading of the scene \u2014 not a
+    photograph, and not evidence \u2014 but he was very good, and where the
+    printer said which passage a plate belongs to, it sits there in the text.</p>`);
+  o.push(`<p class="pa" style="margin:10px 0 18px">${placed} are set at a verse.
+    ${outside} illustrate books this Bible does not carry, so they are here and
+    not in the text. ${nowhere} carry no reference at all; rather than guess a
+    verse from the title, they are listed as what they are.</p>`);
+
+  ids.forEach(k => {
+    const pl = d.plates[k];
+    if (!pl) return;
+    const vk = where[k];
+    o.push(`<figure class="plate" style="margin:18px 0 26px">
+      <img src="data/dore/${esc(pl.file)}" alt="${esc(pl.title)}, engraved by Gustave Dor\u00e9"
+        width="${pl.w}" height="${pl.h}" loading="lazy" decoding="async">
+      <figcaption>
+        <span style="font-weight:600">${esc(pl.title)}</span>
+        <span class="ot" style="display:block;margin-top:3px">Plate ${esc(k)}${
+          pl.ref ? ' \u00b7 printed as \u201c' + esc(pl.ref) + '\u201d' : ''}</span>
+        ${vk ? `<button class="chip" data-ref="${esc(vk)}"
+                 style="margin-top:8px">Read ${esc(refLabel(vk))} \u2192</button>`
+             : `<span class="ot" style="display:block;margin-top:6px">${
+                 apoc[k] ? 'Illustrates ' + esc(apoc[k]) + '.'
+                         : 'No passage is recorded for this plate, so it is not set in the text.'
+               }</span>`}
+        ${pl.page ? `<span class="ot" style="display:block;margin-top:4px"><a
+          href="${esc(pl.page)}" target="_blank" rel="noopener">Where this scan came from</a></span>` : ''}
+      </figcaption></figure>`);
+  });
+  o.push(footer());
+  $('#view').innerHTML = o.join('');
+  window.scrollTo(0, 0);
+}
+
 /* ================================================================= audio */
 /* Public-domain readings from LibriVox, streamed from archive.org. Nothing
    is hosted here and nothing is downloadable for offline use, so the player
@@ -1256,7 +1333,7 @@ function aboutView() {
    ['Wikimedia Commons and Wikidata',
     'The photographs of the places. Each one carries its own licence and photographer where it appears; none were used that are not free to pass on.'],
    ['Gustave Doré, 1866',
-    'The 150 engravings set in the text. Doré died in 1883, so the plates have been in the public domain for a century; these scans come from Wikimedia Commons.']
+    'The 150 engravings. Doré died in 1883, so the plates have been in the public domain for a century; these scans come from Wikimedia Commons. 125 are set at the verse the printer named; the rest are in the gallery, each with the reason it is not in the text.']
   ].forEach(([t, b]) => o.push(
     `<div class="mo"><p style="font-weight:600;margin:0 0 6px">${esc(t)}</p>
      <p class="de" style="margin:0">${esc(b)}</p></div>`));
@@ -1392,6 +1469,7 @@ function route() {
   if (h === 'chrono') { $('#ref').textContent = 'Chronology'; return chronoView(); }
   if (h === 'offline') { $('#ref').textContent = 'Offline'; return offlineView(); }
   if (h === 'about')  { $('#ref').textContent = 'About';      return aboutView(); }
+  if (h === 'plates') { $('#ref').textContent = 'Engravings'; return platesView(); }
   if (h.startsWith('search')) {
     const q = (h.split('?q=')[1] || '').replace(/\+/g, ' ');
     $('#ref').textContent = 'Search';

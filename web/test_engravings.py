@@ -82,6 +82,54 @@ async def main():
         nv = await pg.locator('.v').count()
         chk('the chapter still reads normally', nv > 10, nv)
 
+        # ---- the gallery ------------------------------------------------
+        # 25 of the 150 plates are not in the text. They are not dropped,
+        # and the gallery has to say which reason applies to which plate
+        # rather than leaving every gap looking the same.
+        print('\nthe gallery')
+        await pg.goto(BASE + '#/plates', wait_until='load')
+        await pg.wait_for_function(
+            "() => document.querySelectorAll('#view .plate').length > 100",
+            timeout=20000)
+        n = await pg.locator('#view .plate').count()
+        chk('all 150 plates are shown', n == 150, n)
+        txt = await pg.inner_text('#view')
+        chk('it says how many are set at a verse', '125 are set at a verse' in txt,
+            txt[:400])
+        chk('it says some books are not carried',
+            'books this Bible does not carry' in txt, txt[:500])
+        chk('it refuses to guess a verse from a title',
+            'rather than guess a verse from the title' in txt, txt[:600])
+        chk('it credits Dore and the year',
+            'Dor' in txt and '1866' in txt)
+        chk('it says the plates are public domain', 'public domain' in txt)
+        reads = await pg.locator('#view [data-ref]').count()
+        chk('every placed plate offers to open its passage', reads == 125, reads)
+        chk('the Maccabees plates say which book they illustrate',
+            'Illustrates 1 Maccabees' in txt, '')
+        chk('the Daniel additions say the chapter is not here',
+            'which this Bible does not have' in txt, '')
+        chk('the unreferenced ones say no passage is recorded',
+            'No passage is recorded for this plate' in txt, '')
+        # and tapping through actually goes somewhere
+        await pg.locator('#view [data-ref]').first.click()
+        await pg.wait_for_function(
+            "() => document.querySelectorAll('#view .v').length > 0", timeout=15000)
+        h1 = await pg.inner_text('h1')
+        chk('tapping a plate opens its chapter', 'Genesis' in h1, h1)
+        # reachable without typing a url
+        await pg.goto(BASE + '#/Gen.1', wait_until='load')
+        await pg.wait_for_timeout(1200)
+        await pg.click('#btnAa')
+        await pg.wait_for_timeout(300)
+        chk('the Reading sheet links to the gallery',
+            await pg.locator('[data-go="plates"]').count() == 1)
+        await pg.locator('[data-go="plates"]').click()
+        await pg.wait_for_function(
+            "() => document.querySelectorAll('#view .plate').length > 100",
+            timeout=20000)
+        chk('and the link works', await pg.locator('#view .plate').count() == 150)
+
         chk('no engraving request failed', not bad, bad[:4])
         await b.close()
     print()

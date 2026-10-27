@@ -42,6 +42,16 @@ EXTRA = {
     'heb': 'Heb', 'jas': 'Jas', 'i pet': '1Pe', 'ii pet': '2Pe',
     'i john': '1Jn', 'ii john': '2Jn', 'iii john': '3Jn', 'jude': 'Jud',
     'rev': 'Rev',
+    # The printer also writes the Kingdoms and Chronicles in the singular,
+    # and uses arabic numerals as readily as roman: "2 King 25:1-7".
+    '1 king': '1Ki', '2 king': '2Ki', 'i king': '1Ki', 'ii king': '2Ki',
+    '1 kings': '1Ki', '2 kings': '2Ki',
+    '1 chron': '1Ch', '2 chron': '2Ch', '1 chronicle': '1Ch',
+    '2 chronicle': '2Ch', '1 sam': '1Sa', '2 sam': '2Sa',
+    '1 samuel': '1Sa', '2 samuel': '2Sa', '1 cor': '1Co', '2 cor': '2Co',
+    '1 thess': '1Th', '2 thess': '2Th', '1 tim': '1Ti', '2 tim': '2Ti',
+    '1 pet': '1Pe', '2 pet': '2Pe', '1 john': '1Jn', '2 john': '2Jn',
+    '3 john': '3Jn',
 }
 for k, v in EXTRA.items():
     NAMES.setdefault(k, v)
@@ -65,6 +75,18 @@ APOCRYPHA = {
     'esdr': 'Esdras', 'sus': 'Susanna', 'bel': 'Bel and the Dragon',
 }
 
+# Two of the Maccabees plates have their reference typed in Cyrillic -
+# "2 \u041cacc. 9:1-9" with a Cyrillic \u041c, "2 \u041c\u0430\u0441\u0441. 6:18-31" with three. They
+# look exactly like Latin and match nothing. Folding the lookalikes back is
+# a transliteration, not a guess.
+CYR = str.maketrans({
+    '\u0410': 'A', '\u0412': 'B', '\u0415': 'E', '\u041a': 'K', '\u041c': 'M', '\u041d': 'H', '\u041e': 'O',
+    '\u0420': 'P', '\u0421': 'C', '\u0422': 'T', '\u0425': 'X', '\u0430': 'a', '\u0432': 'b', '\u0435': 'e',
+    '\u043a': 'k', '\u043c': 'm', '\u043d': 'h', '\u043e': 'o', '\u0440': 'p', '\u0441': 'c', '\u0443': 'y',
+    '\u0445': 'x', '\u0456': 'i',
+})
+
+
 def resolve_book(raw, chapter=None):
     """Dore's printer abbreviates Judges as "Jud.", which is also our book
     code for Jude. Jude has exactly one chapter, so any "Jud. N" with N
@@ -72,7 +94,7 @@ def resolve_book(raw, chapter=None):
     guess, and the chapter-range check below is what caught the collision
     in the first place - 16 plates of Samson and Gideon were being thrown
     away rather than quietly filed under a one-chapter epistle."""
-    k = raw.lower().replace('.', '').strip()
+    k = raw.translate(CYR).lower().replace('.', '').strip()
     k = re.sub(r'\s+', ' ', k)
     if k in APOCRYPHA:
         return ('APOC', APOCRYPHA[k])
@@ -85,37 +107,74 @@ def resolve_book(raw, chapter=None):
     for name in sorted(NAMES, key=len, reverse=True):
         if k.startswith(name):
             return NAMES[name]
+    # An abbreviation that is a prefix of several books: "Ez." could be Ezra
+    # or Ezekiel. If only one of the candidates HAS the chapter printed on
+    # the plate, that is the one - Ezra stops at ten, so "Ez. 14" is Ezekiel.
+    # An inference from the data, like the Judges/Jude case above.
+    if chapter is not None and len(k) >= 2:
+        fits = {NAMES[n] for n in NAMES
+                if n.startswith(k) and chapter <= MAXCH.get(NAMES[n], 0)}
+        if len(fits) == 1:
+            return fits.pop()
     return None
 
 def parse(desc):
     """-> (list of verse keys, the reference as printed) or (None, None)"""
     if not desc:
         return None, None
+    # Fold the Cyrillic lookalikes before the regex runs, not after. The
+    # book pattern needs [A-Za-z] for its first letter, so "2 \u041c\u0430\u0441\u0441." never
+    # reached resolve_book to be folded there at all.
+    desc = desc.translate(CYR)
     m = re.search(r'\(([^)]*\d[^)]*)\)\s*$', desc)
     inner = m.group(1) if m else desc
-    refs, book = [], None
-    for mm in BOOK_RE.finditer(inner):
-        raw_book, ch, v1, v2 = mm.groups()
-        raw_book = raw_book.strip()
-        if raw_book and not raw_book.isdigit():
-            b = resolve_book(raw_book, int(ch))
-            if isinstance(b, tuple):
-                return 'APOCRYPHA', b[1]
-            if b:
-                book = b
-            elif book is None:
+    refs, book, chap, beyond = [], None, None, set()
+    BARE = re.compile(r'^\s*(?:(\d+)\s*:\s*)?(\d+)(?:\s*[-\u2013]\s*(\d+))?\s*$')
+    for piece in re.split(r'[;,]', inner):
+        if not piece.strip():
+            continue
+        mm = BOOK_RE.search(piece)
+        if mm:
+            raw_book, ch, v1, v2 = mm.groups()
+            raw_book = raw_book.strip()
+            if raw_book and not raw_book.isdigit():
+                b = resolve_book(raw_book, int(ch))
+                if isinstance(b, tuple):
+                    return 'APOCRYPHA', b[1]
+                if b:
+                    book = b
+                elif book is None:
+                    continue
+            if book is None:
                 continue
-        if book is None:
-            continue
-        ch = int(ch)
-        if ch < 1 or ch > MAXCH.get(book, 0):
-            continue
-        if v1:
-            a, z = int(v1), int(v2 or v1)
-            refs += [f'{book}.{ch}.{v}' for v in range(a, min(z, a + 60) + 1)]
+            chap = int(ch)
+            v_from, v_to = v1, v2
         else:
-            refs.append(f'{book}.{ch}')
-    return (refs or None), (m.group(1) if m else None)
+            # no book letter here: a continuation of the last one
+            bm = BARE.match(piece)
+            if not bm or book is None:
+                continue
+            c, a, z = bm.groups()
+            if c:
+                chap, v_from, v_to = int(c), a, z
+            elif chap is not None:
+                v_from, v_to = a, z
+            else:
+                chap, v_from, v_to = int(a), None, None
+        if book is None or chap is None:
+            continue
+        if chap < 1 or chap > MAXCH.get(book, 0):
+            beyond.add(f'{book} {chap}')
+            continue
+        if v_from:
+            a, z = int(v_from), int(v_to or v_from)
+            refs += [f'{book}.{chap}.{v}' for v in range(a, min(z, a + 60) + 1)]
+        else:
+            refs.append(f'{book}.{chap}')
+    printed = m.group(1) if m else None
+    if not refs and beyond:
+        return ('BEYOND', sorted(beyond))
+    return (refs or None), printed
 
 plates = json.load(open(SRC, encoding='utf-8'))
 print(f"plates fetched: {len(plates)}")
@@ -132,6 +191,11 @@ for title, r in sorted(plates.items(), key=lambda kv: kv[1].get('plate') or 999)
     parsed = parse(r.get('desc'))
     if parsed[0] == 'APOCRYPHA':
         apocrypha.append((pid, r['title'], parsed[1]))
+        refs, printed = None, None
+    elif parsed[0] == 'BEYOND':
+        # e.g. "Dan. 13:1-26": a real book, a chapter it does not have.
+        apocrypha.append((pid, r['title'],
+                          ' and '.join(parsed[1]) + ', which this Bible does not have'))
         refs, printed = None, None
     else:
         refs, printed = parsed
@@ -183,8 +247,34 @@ at = defaultdict(list)
 for pid, vk in firstverse.items():
     at[vk].append(pid)
 
+apoc = {pid: bk for pid, _t, bk in apocrypha if pid in manifest}
+
+# One plate carries no reference at all but sits in the middle of the run
+# that illustrates the Apocrypha: 112 "Judith and Holofernes" between 111
+# (Tobit) and 113 (Judith). The plates are numbered in canonical order
+# throughout the set, so a gap whose nearest neighbours on BOTH sides are
+# outside this Bible is outside it too. That is the plate ordering talking,
+# not the title - the five Genesis plates with no reference have Genesis
+# neighbours and stay where they are, unplaced and said to be.
+order = sorted(manifest, key=lambda k: int(k))
+shown = {pid for pids in at.values() for pid in pids}
+bracketed = 0
+for i, pid in enumerate(order):
+    if pid in shown or pid in apoc:
+        continue
+    before = next((order[j] for j in range(i - 1, -1, -1)
+                   if order[j] in shown or order[j] in apoc), None)
+    after = next((order[j] for j in range(i + 1, len(order))
+                  if order[j] in shown or order[j] in apoc), None)
+    if before in apoc and after in apoc:
+        apoc[pid] = ('the same part of the set as the plates either side, '
+                     'which this Bible does not carry')
+        bracketed += 1
+if bracketed:
+    print(f"\n{bracketed} plate(s) placed outside this Bible by the plate order alone")
 with open(f'{OUT}/dore.json', 'w', encoding='utf-8') as f:
-    json.dump({'plates': manifest, 'at': at, 'bychapter': bychap},
+    json.dump({'plates': manifest, 'at': at, 'bychapter': bychap,
+               'apoc': apoc},
               f, ensure_ascii=False, separators=(',', ':'))
 
 print(f"plates shown at    : {len(at):,} verses (each plate once)")
