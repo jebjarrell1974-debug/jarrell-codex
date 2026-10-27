@@ -20,9 +20,28 @@ async def main():
 
         man = json.load(open('/home/claude/site/data/pix_manifest.json', encoding='utf-8'))
         print(f'{len(man)} photographs in the manifest')
-        chk('every picture is credited',
+        chk('every picture names a licence',
             all(m.get('licence') for m in man.values()),
             [k for k,m in man.items() if not m.get('licence')][:4])
+
+        # The point of CC BY, CC BY-SA and GPL is that you name the author.
+        # Fourteen of these shipped with a licence and artist: null, which
+        # showed the terms with nobody to credit. A manifest entry under an
+        # attribution licence and without a credit must fail here rather
+        # than reach a reader.
+        def txt(m, k):
+            v = m.get(k)
+            return v if isinstance(v, str) else ''
+        def public(m):
+            lic = (txt(m, 'licence') + ' ' + txt(m, 'licurl')).lower()
+            return ('publicdomain' in lic or 'public domain' in lic
+                    or 'cc0' in lic)
+        owed = [k for k, m in man.items()
+                if not public(m) and not txt(m, 'artist')]
+        chk('every picture under an attribution licence names its author',
+            not owed, owed[:6])
+        nolink = [k for k, m in man.items() if not txt(m, 'page')]
+        chk('and links the page it came from', not nolink, nolink[:6])
         chk('every picture links back to its source',
             all(m.get('page') for m in man.values()))
         chk('nothing is over 300 KB',

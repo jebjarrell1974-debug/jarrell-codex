@@ -6,7 +6,7 @@
    browser fetch a new worker, which drops the stale data cache on activate.
    Without that, someone who opened the site once would keep the old data
    for ever. */
-const BUILD = '065fad0c24f4';
+const BUILD = 'b9a184d1d8c3';
 const SHELL = 'codex-shell-' + BUILD;
 const DATA  = 'codex-data-' + BUILD;
 const CORE  = ['./', 'index.html', 'app.css', 'scheme.css', 'app.js', 'icon.svg',
