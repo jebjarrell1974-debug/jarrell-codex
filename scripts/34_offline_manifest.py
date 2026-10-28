@@ -15,6 +15,11 @@ def walk(sub, pred=lambda p: True):
     root = os.path.join(DATA, sub) if sub else DATA
     for dirpath, _, files in os.walk(root):
         for fn in sorted(files):
+            # A leading underscore means a fixture, not something a reader
+            # should download. test_pano.py needs _test.webp served from
+            # the local tree; nobody needs it in their offline copy.
+            if fn.startswith('_'):
+                continue
             p = os.path.join(dirpath, fn)
             rel = os.path.relpath(p, SITE).replace(os.sep, '/')
             if pred(rel):
