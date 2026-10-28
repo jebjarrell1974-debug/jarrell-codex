@@ -72,7 +72,15 @@ chk("scheme.css is precached", "scheme.css" in sw)
 chk("cache is content-stamped", "const BUILD = '" in sw and "__BUILD__" not in sw)
 st, om = fetch("data/offline_manifest.json")
 tiers = json.loads(om)["tiers"]
-chk("six download tiers", len(tiers) == 6, list(tiers))
+# However many there are, each has to carry files, a size and a label.
+incomplete = [k for k, t in tiers.items()
+              if not (t.get("count") and t.get("bytes")
+                      and t.get("label") and t.get("note"))]
+chk("every tier has files, a size and words saying what it is",
+    not incomplete, incomplete)
+chk("the text, the pictures and the commentaries are among them",
+    {"text", "pictures", "commentary"} <= set(tiers), list(tiers))
+print(f"       {len(tiers)} tiers: " + ", ".join(tiers))
 total = sum(t["bytes"] for t in tiers.values())
 print(f"       everything offline = {total/1048576:.0f} MB in {sum(t['count'] for t in tiers.values()):,} files")
 

@@ -17,3 +17,18 @@ cannot check that the things the site points at are actually there.
 - `verify_live_credits.py` - that every photograph under an attribution
   licence names its author, in the manifest the site actually serves. Fourteen
   once did not.
+
+- `verify_live_welcome.py` - the first screen: that a first visit lands on
+  it, that the Start button is wired to the click handler, and that it is
+  shown once and can be asked for again.
+- `verify_live_pano.py` - the photospheres: that every one names an author,
+  a licence and a source page, that every image is really 2048x1024 and
+  under 360 KB, that the page loads no third-party script, and that no test
+  fixture ended up in the offline tier.
+- `final_check.py` - runs all five in order.
+
+Two checks in here used to assert a tier count by hand. "six download
+tiers" was true until the photospheres made it seven, and then it was a
+failing test about nothing. Both now assert what actually matters - that
+every tier the manifest declares has files, a size and words saying what it
+is - which keeps being true the next time one is added.
