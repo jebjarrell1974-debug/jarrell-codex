@@ -162,6 +162,30 @@ async def main():
         n = await pg3.locator('#view select').count()
         if n: found.append(('chronology', n))
         chk('no <select> survives in any panel', not found, found)
+
+        # ---- landscape --------------------------------------------------
+        # The manifest used to lock the installed app to portrait. Somebody
+        # with the phone in a stand, or who simply holds it the other way,
+        # should not be told no - and the photosphere pane is far better
+        # wide. So it has to read properly turned sideways too.
+        print('\nsideways')
+        pg4 = await ctx2.new_page()   # ctx was closed above
+        await pg4.set_viewport_size({'width': 844, 'height': 390})
+        await pg4.goto(BASE + '#/Jhn.3', wait_until='load')
+        await pg4.wait_for_function(
+            "() => document.querySelectorAll('#view .v').length > 0", timeout=20000)
+        await pg4.evaluate("() => { S.fs = 30; applyDisplay(); }")
+        await pg4.wait_for_timeout(300)
+        over = await pg4.evaluate(
+            "() => document.documentElement.scrollWidth - window.innerWidth")
+        chk('no sideways scrolling in landscape at 30px', over <= 1, over)
+        bar = await pg4.locator('.bar-in').bounding_box()
+        chk('the bar still fits', bar['width'] <= 844, bar['width'])
+        import json as _json
+        mf = _json.load(open('/home/claude/site/manifest.webmanifest'))
+        chk('and the manifest does not forbid it',
+            mf.get('orientation') in (None, 'any'), mf.get('orientation'))
+
         await b.close()
 
     print()
