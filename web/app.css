@@ -252,10 +252,15 @@ body.playing{padding-bottom:calc(248px + env(safe-area-inset-bottom,0px))}
 .demo{min-width:44px;min-height:44px;display:inline-flex;align-items:center;
   justify-content:center;border:1px solid var(--line);border-radius:10px;
   background:var(--surface);color:var(--ink)}
-.start{width:100%;min-height:60px;border:2px solid var(--accent);
+/* .start is the one big button on the first screen. The install button
+   wants the same look a size down, and its own class: sharing .start made
+   "the Start reading button" two buttons. */
+.start,.instbtn{width:100%;border:2px solid var(--accent);
   border-radius:12px;background:var(--accent);color:var(--on-accent);
-  font-size:var(--t5);font-weight:600}
-.start:active{background:var(--accent-soft);color:var(--accent)}
+  font-weight:600}
+.start{min-height:60px;font-size:var(--t5)}
+.instbtn{min-height:52px;font-size:var(--t4);margin:2px 0}
+.start:active,.instbtn:active{background:var(--accent-soft);color:var(--accent)}
 
 /* ---- standing in a place --------------------------------------------
    The arrows are the control and the drag is the shortcut, not the other

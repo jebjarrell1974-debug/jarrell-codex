@@ -1298,6 +1298,74 @@ async function lookAround(name) {
   img.src = 'data/pano/' + p.file;
 }
 
+
+/* ============================================================== install */
+/* Chrome hands over a prompt it will honour; Safari never does, and the
+   only way in is Share then Add to Home Screen. So the offer is a real
+   button where there is a real prompt, and the right words for this phone
+   where there is not - not a list of every platform's instructions, which
+   is how nobody ever installs anything. */
+
+let INSTALL_PROMPT = null;
+window.addEventListener('beforeinstallprompt', ev => {
+  ev.preventDefault();
+  INSTALL_PROMPT = ev;
+  const b = document.getElementById('installBtn');
+  if (b) b.hidden = false;
+});
+
+function standalone() {
+  try {
+    return window.matchMedia('(display-mode: standalone)').matches
+        || window.navigator.standalone === true;
+  } catch { return false; }
+}
+
+/** The one route that works on the phone in front of us. */
+function installHow() {
+  const ua = navigator.userAgent || '';
+  const ios = /iPad|iPhone|iPod/.test(ua)
+           || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  if (ios) {
+    return 'Tap the share button at the bottom of Safari \u2014 the square '
+         + 'with an arrow coming out of it \u2014 then scroll down and tap '
+         + '<b>Add to Home Screen</b>.';
+  }
+  if (/Android/.test(ua)) {
+    return 'Tap the three dots at the top right of the browser, then '
+         + '<b>Add to Home screen</b> or <b>Install app</b>.';
+  }
+  return 'Your browser\u2019s menu will have <b>Install</b> or '
+       + '<b>Add to Home screen</b> in it.';
+}
+
+function installBlock() {
+  if (standalone()) {
+    return `<div class="mo"><p style="font-weight:600;margin:0 0 6px">It is
+      already on your home screen</p><p class="de" style="margin:0">That is
+      why there are no browser bars round it, and why it opens straight to
+      where you were.</p></div>`;
+  }
+  return `<div class="mo">
+    <p style="font-weight:600;margin:0 0 6px">Put it on your home screen</p>
+    <p class="de" style="margin:0 0 8px">Then it is an icon you tap like any
+    other app, it opens straight to where you left off, and the browser\u2019s
+    bars go away \u2014 which is a good inch of screen back for the words.
+    Nothing is installed from a shop and nothing asks for an account.</p>
+    <button class="instbtn" id="installBtn" data-install="1" hidden>Add it to
+      my home screen</button>
+    <p class="pa" style="margin:8px 0 0">${installHow()}</p></div>`;
+}
+
+async function doInstall() {
+  if (!INSTALL_PROMPT) return;
+  const p = INSTALL_PROMPT;
+  INSTALL_PROMPT = null;
+  const b = document.getElementById('installBtn');
+  if (b) b.hidden = true;
+  try { await p.prompt(); } catch { /* dismissed */ }
+}
+
 /* ============================================================== welcome */
 /* The first thing a person sees when somebody sends them the link.
    Two sentences on what it is, then the five things worth knowing, each
@@ -1385,7 +1453,8 @@ function welcomeView() {
   o.push(`<p class="pa" style="margin:4px 0 0">It opens at John 3. Use the
     menu at the top left to go anywhere else.</p>`);
 
-  o.push(`<p class="lbl" style="margin:30px 0 8px">Two more things, for later</p>`);
+  o.push(`<p class="lbl" style="margin:30px 0 8px">Three more things, for later</p>`);
+  o.push(installBlock());
   o.push(`<div class="mo"><p style="font-weight:600;margin:0 0 6px">It works with no signal</p>
     <p class="de" style="margin:0">Chapters you have opened are kept on your phone
     already. If you want the whole thing \u2014 every word, every picture \u2014 there is a
@@ -1762,6 +1831,7 @@ function aboutView() {
     people who made them, and that request is still outstanding. Everything else
     works without it.</p>`);
 
+  o.push(installBlock());
   o.push(`<button class="more" data-go="welcome" style="margin:18px 0 0">Show me
     how to use this again \u2192</button>`);
   o.push(`<p class="lbl" style="margin:24px 0 8px">Where all of this came from</p>`);
@@ -1938,7 +2008,7 @@ function route() {
 
 /* ========================================================= event wiring */
 document.addEventListener('click', ev => {
-  const t = ev.target.closest('[data-look],[data-pan],[data-startreading],[data-listen],[data-aufrom],[data-setpix],[data-go2],[data-fs],[data-setscheme3],[data-settx],[data-setpron],[data-setscheme],[data-setscheme2],[data-tier],[data-dlstart],[data-dlstop],[data-dlclear],[data-cmf],[data-close],[data-v][data-t],[data-k],[data-ref],[data-conc],[data-dict],[data-book],[data-ch],[data-nav],[data-go],[data-tab],[data-expand]');
+  const t = ev.target.closest('[data-install],[data-look],[data-pan],[data-startreading],[data-listen],[data-aufrom],[data-setpix],[data-go2],[data-fs],[data-setscheme3],[data-settx],[data-setpron],[data-setscheme],[data-setscheme2],[data-tier],[data-dlstart],[data-dlstop],[data-dlclear],[data-cmf],[data-close],[data-v][data-t],[data-k],[data-ref],[data-conc],[data-dict],[data-book],[data-ch],[data-nav],[data-go],[data-tab],[data-expand]');
   if (!t) return;
 
   if (t.dataset.close) return closeSheet();
@@ -1962,6 +2032,7 @@ document.addEventListener('click', ev => {
     markWelcome();
     return go('#/' + S.book + '.' + S.ch);
   }
+  if (t.dataset.install) return void doInstall();
   if (t.dataset.look) return void lookAround(t.dataset.look);
   if (t.dataset.listen) return void listen(S.book, S.ch);
   if (t.dataset.aufrom !== undefined) {

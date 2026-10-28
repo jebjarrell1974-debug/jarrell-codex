@@ -94,6 +94,41 @@ async def main():
         chk('and that everything else does not',
             'everything else does not' in txt, '')
 
+        print('\nputting it on the home screen')
+        chk('the first screen offers it',
+            'home screen' in txt.lower(), txt[:200])
+        chk('and says why it is worth doing',
+            'opens straight to where you left off' in txt, '')
+        chk('and that nothing comes from a shop',
+            'Nothing is installed from a shop' in txt, '')
+        # Chrome in this harness does not fire beforeinstallprompt, which is
+        # the same position Safari is always in: no prompt to offer, so the
+        # words have to carry it. The button stays hidden until a prompt
+        # actually exists, because a button that does nothing is worse than
+        # none.
+        hidden = await pg.evaluate(
+            "() => { const b = document.getElementById('installBtn');"
+            " return b ? b.hidden : 'no button'; }")
+        chk('the button is hidden until the browser offers a prompt',
+            hidden is True or hidden == 'no button', hidden)
+        how = await pg.evaluate("() => installHow()")
+        chk('and the written route is one route, not a list',
+            how.count('Add to Home') + how.count('Add to home') == 1, how)
+        # the right route for the phone in hand
+        ios = await pg.evaluate("""() => {
+            const real = navigator.userAgent;
+            Object.defineProperty(navigator, 'userAgent',
+                { get: () => 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)',
+                  configurable: true });
+            const s = installHow();
+            Object.defineProperty(navigator, 'userAgent',
+                { get: () => real, configurable: true });
+            return s;
+        }""")
+        chk('an iPhone is told about the share button',
+            'share button' in ios and 'Safari' in ios, ios)
+        chk('and not about three dots', 'three dots' not in ios, ios)
+
         print('\nstarting to read')
         await start.click()
         await pg.wait_for_function(
