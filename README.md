@@ -44,6 +44,7 @@ Or take the whole database and carry it off: **[downloads](https://jebjarrell197
 | **Search** | Verse text, English gloss to original word, dictionary headwords, and the notes |
 | **Chronology** | Six dated schemes you choose between, never one silently assumed |
 | **Context** | 108,925 historical, cultural and linguistic notes across 93% of verses |
+| **Audio** | All 1,189 chapters read aloud, from public-domain LibriVox recordings streamed from archive.org |
 
 ## The idea in one sentence
 
@@ -138,11 +139,21 @@ does not yet show the commentary layer.
 `reader/` is a reference reader over a real slice of the data, built and tested
 first so the client UI was a port of something known-good.
 
+## Listening
+
+Every chapter has a **Listen** button at the top and the bottom. The readings
+are LibriVox recordings, read by volunteers and
+released into the public domain, so they need no licence and no permission.
+They stream from archive.org rather than being copied here, which means
+Listen needs a connection even when the text does not. Most of those files
+hold several chapters, so the player starts at an estimated point inside the
+file and says that it is an estimate.
+
 ## What is missing
 
-**Audio.** It needs a licence from the people who recorded it, and that request
-is still outstanding. The app says so plainly rather than showing a button that
-does nothing.
+**Offline audio.** The readings stream; they are not part of the offline copy.
+The text, the study layers and the pictures all work with no signal, but the
+spoken word still needs one.
 
 ## Licence
 

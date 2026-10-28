@@ -25,6 +25,16 @@ c = sqlite3.connect(DB)
 c.row_factory = sqlite3.Row
 report = {}
 
+# Every verse list goes out in Bible order. Sorting on verse_key is
+# alphabetical, which puts 1 Chronicles before Genesis and 15:25 before 15:3,
+# and because the lists are capped it also decided WHICH verses survived:
+# Jerusalem kept 400 of 955, every one of them from a book whose code sorts
+# early, and not one from Genesis. Sort first, then cap.
+VORD = {r[0]: (r[1], r[2], r[3]) for r in c.execute(
+    "select verse_key, book_order, chapter, verse from verse")}
+def canon(refs):
+    return sorted(refs, key=lambda vk: VORD.get(vk, (999, 0, 0)))
+
 # ---------------------------------------------------------------- concordance
 print('concordance...', flush=True)
 occ = defaultdict(list)
@@ -43,6 +53,7 @@ del seen
 shards = defaultdict(dict)
 truncated = 0
 for ss, refs in occ.items():
+    refs = canon(refs)
     n = len(refs)
     if n > CAP:
         truncated += 1
@@ -64,7 +75,7 @@ for r in c.execute("select place_id, verse_key from place_verse order by verse_k
     pv[r['place_id']].append(r['verse_key'])
 places = {}
 for r in c.execute("select * from place"):
-    refs = pv.get(r['place_id'], [])
+    refs = canon(pv.get(r['place_id'], []))
     places[r['name']] = {
         'slug':   r['url_slug'],
         'status': r['status'],
@@ -90,7 +101,7 @@ for r in c.execute("select person_id, verse_key from person_verse order by verse
 people = {}
 dupes = 0
 for r in c.execute("select * from person order by person_id"):
-    refs = sv.get(r['person_id'], [])
+    refs = canon(sv.get(r['person_id'], []))
     rec = {
         'title':  r['display_title'],
         'slug':   r['slug'],
@@ -129,7 +140,7 @@ for r in c.execute("select * from event order by sort_key"):
         'sort':  r['sort_key'],
         'dur':   r['duration'],
         'dates': ev_d.get(r['event_id'], {}),
-        'refs':  ev_v.get(r['event_id'], []),
+        'refs':  canon(ev_v.get(r['event_id'], [])),
     }
 report['events'] = dict(n=len(events), mb=round(w('event.json', events)/1048576, 2))
 print(f"  {len(events)} events", flush=True)
