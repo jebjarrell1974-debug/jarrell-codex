@@ -102,6 +102,14 @@ function refLabel(vk) {
   const p = String(vk).split('.');
   return bookName(p[0]) + ' ' + (p[1] || '') + (p[2] ? ':' + p[2] : '');
 }
+// The verse lists under a place, a person or an event are cut short so the
+// panel stays usable. Say so, rather than letting a list of 120 pass for
+// all 955.
+function moreRefs(total, shown) {
+  return shown < total
+    ? `<p class="oc">Showing the first ${shown.toLocaleString()} of ${total.toLocaleString()}, in Bible order.</p>`
+    : '';
+}
 function parseRef(text) {
   const m = /^\s*((?:[1-3]|i{1,3}|first|second|third)?\s*[a-z. ]+?)\s*(\d+)?(?:\s*[:.]\s*(\d+))?\s*$/i
     .exec(text || '');
@@ -493,6 +501,7 @@ async function placeSheet(vi, i) {
     o.push(`<p class="lbl" style="margin:18px 0 6px">Named in ${d.n} verse${d.n === 1 ? '' : 's'}</p>`);
     (d.refs || []).slice(0, 120).forEach(vk => o.push(
       `<button class="hit" data-ref="${esc(vk)}"><span class="r">${esc(refLabel(vk))}</span></button>`));
+    o.push(moreRefs(d.n, Math.min(120, (d.refs || []).length)));
   }
   o.push(`<button class="more" data-dict="${esc(p[0])}">Dictionary entry for ${esc(p[0])} →</button>`);
   sheet(o.join(''));
@@ -520,6 +529,7 @@ async function personSheet(vi, i) {
       o.push(`<p class="oc">named in ${s.n} verse${s.n === 1 ? '' : 's'}</p>`);
       (s.refs || []).slice(0, 80).forEach(vk => o.push(
         `<button class="hit" data-ref="${esc(vk)}"><span class="r">${esc(refLabel(vk))}</span></button>`));
+      o.push(moreRefs(s.n, Math.min(80, (s.refs || []).length)));
     }
     o.push('</div>');
   });
@@ -553,6 +563,7 @@ async function eventSheet(vi, i) {
     o.push(`<p class="lbl" style="margin:18px 0 6px">Passages</p>`);
     d.refs.slice(0, 150).forEach(vk => o.push(
       `<button class="hit" data-ref="${esc(vk)}"><span class="r">${esc(refLabel(vk))}</span></button>`));
+    o.push(moreRefs(d.refs.length, Math.min(150, d.refs.length)));
   }
   o.push(`<button class="more" data-go="chrono">See it on the timeline →</button>`);
   sheet(o.join(''));
