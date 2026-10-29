@@ -257,12 +257,19 @@ async def main():
         await pg.wait_for_timeout(700)
         await pg.screenshot(path=f'{SHOT}/17-offline.png')
         # the real thing: download one tier and confirm it is cached
-        for t in ('text', 'commentary', 'study', 'pictures', 'engravings'):
+        # Turn off every tier but search, taken from the manifest rather
+        # than a list typed in here - which was five names long and went
+        # stale the moment a sixth tier existed.
+        for t in MANIFEST_TIERS:
+            if t == 'search':
+                continue
             await pg.locator(f'[data-tier="{t}"]').click()
             await pg.wait_for_timeout(250)
         await pg.wait_for_timeout(900)
         lbl = await pg.locator('[data-dlstart]').inner_text()
-        chk('only the search tier left selected', mb(lbl) < 20, lbl)
+        want = MANIFEST_TIERS['search']['bytes'] / 1048576
+        chk('only the search tier left selected',
+            abs(mb(lbl) - want) < 1.5, f'{lbl} (search alone is {want:.1f} MB)')
         await pg.locator('[data-dlstart]').click()
         try:
             await pg.wait_for_function(

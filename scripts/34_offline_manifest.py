@@ -81,6 +81,20 @@ if dore:
         'files': sorted(dore),
     }
 
+# The verse text on its own, which is what fills in every list of
+# references. All four translations ship, because a reader can switch and
+# should not then find the lists have gone quiet.
+vt = walk('vt')
+if vt:
+    tiers['verses'] = {
+        'label': 'The verse text for the lists',
+        'note': 'What lets the concordance, the cross-references and the '
+                'place and person lists show you the words of each verse '
+                'rather than only its chapter and verse number. All four '
+                'translations.',
+        'files': sorted(vt),
+    }
+
 # Photospheres. Counted from the manifest rather than hard-coded, because
 # the number depends on where somebody happened to walk with a camera and
 # will change the next time the fetch runs.
