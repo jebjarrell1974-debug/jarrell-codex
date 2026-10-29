@@ -277,3 +277,23 @@ body.playing{padding-bottom:calc(248px + env(safe-area-inset-bottom,0px))}
   color:var(--accent);background:var(--surface);font-size:var(--t4);
   font-weight:600;line-height:1}
 .pbtn:active{background:var(--accent);color:var(--on-accent)}
+
+/* ---- the verse under a reference -------------------------------------
+   A list of bare chapter-and-verse numbers is a table of contents for a
+   concordance rather than a concordance. The text goes underneath, and
+   the word being looked up is picked out so the eye can find it. */
+.vt{display:block;margin-top:5px;font-size:var(--t2);line-height:1.5;
+  color:var(--ink-soft);white-space:normal}
+.vt:empty{display:none}
+.vt mark{background:var(--accent-soft);color:var(--accent);
+  font-weight:600;padding:0 1px;border-radius:3px}
+
+/* ---- the way back ----------------------------------------------------
+   Named, not an arrow in a corner: "Back to the word" is an instruction,
+   a bare arrow is a guess. */
+.sheet-back{display:inline-flex;align-items:center;min-height:44px;
+  padding:6px 12px;border:1px solid var(--line);
+  border-radius:10px;background:var(--surface);color:var(--accent);
+  font-size:var(--t2);font-weight:600;max-width:62%;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sheet-back:active{background:var(--accent-soft)}

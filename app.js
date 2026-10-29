@@ -89,6 +89,69 @@ const lazy = {
   pano: lazily('pano', 'pano.json')
 };
 
+/* The English of one book, in the translation being read. Everywhere a
+   list of verses appears, this is what fills it in. Kept per book and per
+   translation because a reader fetches only what they are reading: all
+   four together are 17 MB, one is 4.2, and the largest single file is a
+   quarter of a megabyte rather than a whole one. */
+const VT = {};
+async function verseText(book) {
+  const key = S.tx + '/' + book;
+  if (VT[key] === undefined) {
+    try { VT[key] = await get(`vt/${key}.json`); }
+    catch { VT[key] = null; }
+  }
+  return VT[key];
+}
+
+/** The text of several verses at once, fetching each book only once. */
+async function verseTexts(keys) {
+  const books = [...new Set(keys.map(k => String(k).split('.')[0]))];
+  const loaded = await Promise.all(books.map(verseText));
+  const by = {};
+  books.forEach((b, i) => by[b] = loaded[i]);
+  const out = {};
+  keys.forEach(k => {
+    const p = String(k).split('.');
+    const rows = by[p[0]];
+    if (rows && p.length >= 3) out[k] = rows[p[1] + '.' + p[2]] || '';
+  });
+  return out;
+}
+
+/**
+ * Fill in the verse text under references already on screen.
+ *
+ * Drawn first and filled afterwards on purpose: the list appears at once
+ * and the words arrive a moment later, rather than the reader waiting on a
+ * quarter of a megabyte before seeing anything at all. `mark` is the word
+ * being looked up, which gets picked out so the eye can find it.
+ */
+async function fillVerseText(root, mark) {
+  const host = root || document.getElementById('sheet');
+  if (!host) return;
+  const slots = [...host.querySelectorAll('[data-vt]')];
+  if (!slots.length) return;
+  const keys = slots.map(e => e.dataset.vt);
+  let text = {};
+  try { text = await verseTexts(keys); }
+  catch { return; }
+  const rx = mark ? new RegExp('(' + mark.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                               + '\\w*)', 'ig') : null;
+  slots.forEach(e => {
+    const t = text[e.dataset.vt];
+    if (!t) { e.remove(); return; }
+    e.innerHTML = rx ? esc(t).replace(rx, '<mark>$1</mark>') : esc(t);
+  });
+}
+
+/** A reference with room for its text underneath. */
+function hit(vk, extra) {
+  return `<button class="hit" data-ref="${esc(vk)}">
+    <span class="r">${esc(refLabel(vk))}</span>${extra || ''}
+    <span class="vt" data-vt="${esc(vk)}"></span></button>`;
+}
+
 /* ------------------------------------------------------------- references */
 // names[code] is [code, full, abbrev...]. Job carries only its code, because
 // the source lists no separate full name for a book already called Job - so
@@ -101,14 +164,6 @@ function bookName(code) {
 function refLabel(vk) {
   const p = String(vk).split('.');
   return bookName(p[0]) + ' ' + (p[1] || '') + (p[2] ? ':' + p[2] : '');
-}
-// The verse lists under a place, a person or an event are cut short so the
-// panel stays usable. Say so, rather than letting a list of 120 pass for
-// all 955.
-function moreRefs(total, shown) {
-  return shown < total
-    ? `<p class="oc">Showing the first ${shown.toLocaleString()} of ${total.toLocaleString()}, in Bible order.</p>`
-    : '';
 }
 function parseRef(text) {
   const m = /^\s*((?:[1-3]|i{1,3}|first|second|third)?\s*[a-z. ]+?)\s*(\d+)?(?:\s*[:.]\s*(\d+))?\s*$/i
@@ -285,15 +340,51 @@ function footer() {
 }
 
 /* ============================================================== the sheet */
-function sheet(html) {
+/* Where the panel has been, so it can go back. Each entry is a function
+   that redraws that step; nothing is stored but the way to rebuild it, so
+   a step cannot go stale while it sits on the stack. */
+const SHEET_STACK = [];
+
+/**
+ * @param html     what to show
+ * @param label    what this step is, for the way back TO it
+ * @param redraw   how to rebuild it, if something deeper wants to return
+ */
+function sheet(html, label, redraw) {
+  const back = SHEET_STACK.length
+    ? `<button class="sheet-back" data-sheetback="1">\u2190 Back to ${
+        esc(SHEET_STACK[SHEET_STACK.length - 1].label)}</button>`
+    : '';
   $('#sheet').innerHTML =
-    '<div class="sheet-top"><div class="grab"></div>' +
+    '<div class="sheet-top"><div class="grab"></div>' + back +
     '<button class="sheet-x" data-close="1" aria-label="Close">\u2715</button></div>' + html;
   $('#sheet').classList.add('open');
   $('#scrim').classList.add('open');
   $('#sheet').scrollTop = 0;
+  // Remembered only once it is on screen, and only if it knows how to
+  // come back. A step with no redraw is a dead end to return to.
+  CURRENT_SHEET = (label && redraw) ? { label, redraw } : null;
 }
+
+/** The step now on screen, which becomes the one below the next step. */
+let CURRENT_SHEET = null;
+
+/** Open a step, remembering the one it came from. */
+function pushSheet(fn) {
+  if (CURRENT_SHEET) SHEET_STACK.push(CURRENT_SHEET);
+  return fn();
+}
+
+function sheetBack() {
+  const prev = SHEET_STACK.pop();
+  if (!prev) return closeSheet();
+  CURRENT_SHEET = null;
+  prev.redraw();
+}
+
 function closeSheet() {
+  SHEET_STACK.length = 0;
+  CURRENT_SHEET = null;
   $('#sheet').classList.remove('open');
   $('#scrim').classList.remove('open');
 }
@@ -330,7 +421,7 @@ async function wordSheet(vi, ti) {
       <div id="lx${mi}"></div></div>`);
   });
   o.push('</div>');
-  sheet(o.join(''));
+  sheet(o.join(''), 'the word', () => wordSheet(vi, ti));
 
   for (let mi = 0; mi < parts.length; mi++) {
     const m = parts[mi], simple = m[2] || m[0];
@@ -378,15 +469,23 @@ async function concSheet(strongs) {
     <span class="tr">${esc(e[1] || '')}</span></div><p class="de"><b>${esc(e[2] || '')}</b></p>`);
   o.push(`<p class="oc">${cc[0].toLocaleString()} verses contain this word${
     shown < cc[0] ? ` &middot; showing the first ${shown.toLocaleString()}` : ''}</p>`);
+  o.push(`<p class="pa">Every one of them, in order. Tap any to open it.</p>`);
+  if (e && e[2]) o.push(`<button class="more" data-dict="${esc(e[2])}"
+    style="margin:10px 0 0">Look “${esc(String(e[2]).split(/[,;(]/)[0].trim())}”
+    up in the Bible dictionary →</button>`);
   o.push('<div style="margin-top:12px">');
-  cc[1].forEach(vk => o.push(
-    `<button class="hit" data-ref="${esc(vk)}"><span class="r">${esc(refLabel(vk))}</span></button>`));
+  cc[1].forEach(vk => o.push(hit(vk)));
   o.push('</div>');
-  sheet(o.join(''));
+  sheet(o.join(''), 'the concordance', () => concSheet(strongs));
+  // The gloss is the English the lexicon gives for this word, which is
+  // what to pick out of each verse. It will not always be the word the
+  // translators used, and where it is not, nothing is marked rather than
+  // the wrong thing being marked.
+  fillVerseText(null, e && e[2] ? String(e[2]).split(/[,;(]/)[0].trim() : '');
 }
 
 /* --------------------------------------------------------- dictionary */
-async function dictSheet(term) {
+async function dictSheet(term, fromStrongs) {
   await lazy.dictIx();
   const key = String(term || '').trim().toLowerCase().replace(/[^a-z' ]/g, '');
   let hits = S.dictIx[key];
@@ -500,11 +599,11 @@ async function placeSheet(vi, i) {
   if (d.n) {
     o.push(`<p class="lbl" style="margin:18px 0 6px">Named in ${d.n} verse${d.n === 1 ? '' : 's'}</p>`);
     (d.refs || []).slice(0, 120).forEach(vk => o.push(
-      `<button class="hit" data-ref="${esc(vk)}"><span class="r">${esc(refLabel(vk))}</span></button>`));
-    o.push(moreRefs(d.n, Math.min(120, (d.refs || []).length)));
+      hit(vk)));
   }
   o.push(`<button class="more" data-dict="${esc(p[0])}">Dictionary entry for ${esc(p[0])} →</button>`);
-  sheet(o.join(''));
+  sheet(o.join(''), p[0], () => placeSheet(vi, i));
+  fillVerseText();
 }
 
 async function personSheet(vi, i) {
@@ -528,13 +627,13 @@ async function personSheet(vi, i) {
     if (s.n) {
       o.push(`<p class="oc">named in ${s.n} verse${s.n === 1 ? '' : 's'}</p>`);
       (s.refs || []).slice(0, 80).forEach(vk => o.push(
-        `<button class="hit" data-ref="${esc(vk)}"><span class="r">${esc(refLabel(vk))}</span></button>`));
-      o.push(moreRefs(s.n, Math.min(80, (s.refs || []).length)));
+        hit(vk)));
     }
     o.push('</div>');
   });
   o.push(`<button class="more" data-dict="${esc(name)}">Dictionary entry for ${esc(name)} →</button>`);
-  sheet(o.join(''));
+  sheet(o.join(''), name, () => personSheet(vi, i));
+  fillVerseText();
 }
 
 function yearLabel(y) {
@@ -562,11 +661,11 @@ async function eventSheet(vi, i) {
   if ((d.refs || []).length) {
     o.push(`<p class="lbl" style="margin:18px 0 6px">Passages</p>`);
     d.refs.slice(0, 150).forEach(vk => o.push(
-      `<button class="hit" data-ref="${esc(vk)}"><span class="r">${esc(refLabel(vk))}</span></button>`));
-    o.push(moreRefs(d.refs.length, Math.min(150, d.refs.length)));
+      hit(vk)));
   }
   o.push(`<button class="more" data-go="chrono">See it on the timeline →</button>`);
-  sheet(o.join(''));
+  sheet(o.join(''), 'the event', () => eventSheet(vi, i));
+  fillVerseText();
 }
 
 /* --------------------------------------------------- notes / commentary */
@@ -601,14 +700,13 @@ function xrefSheet(vi) {
     editors have linked the two passages. The bar is relative weight, not certainty.</p>`);
   xs.forEach(x => {
     const pct = Math.max(6, Math.round(100 * x[1] / (top || 1)));
-    o.push(`<button class="hit" data-ref="${esc(x[0])}">
-      <span class="r">${esc(refLabel(x[0]))}</span>
-      <span style="display:block;height:3px;margin-top:6px;border-radius:2px;
-        background:var(--accent);width:${pct}%;opacity:.55"></span></button>`);
+    o.push(hit(x[0], `<span style="display:block;height:3px;margin-top:6px;
+      border-radius:2px;background:var(--accent);width:${pct}%;opacity:.55"></span>`));
   });
   o.push(`<p class="oc" style="margin-top:12px">Treasury of Scripture Knowledge and
     related sets, aggregated by OpenBible.info</p>`);
   sheet(o.join(''));
+  fillVerseText();
 }
 
 /* ============================================================ readability */
@@ -1377,6 +1475,135 @@ async function doInstall() {
   try { await p.prompt(); } catch { /* dismissed */ }
 }
 
+
+/* ================================================================ guide */
+/* The long version. The first screen is an introduction and this is the
+   manual: what each marker is, how to get from one tool to another, and
+   what to do when a thing is not where you expected it. Written in order,
+   so it can be read straight through once and then dipped into. */
+
+function guideView() {
+  const o = [];
+  const step = (head, body) =>
+    `<div class="mo"><p style="font-weight:600;margin:0 0 7px;font-size:var(--t4)">${head}</p>
+     <div class="de" style="margin:0">${body}</div></div>`;
+
+  o.push(`<h1 style="font-size:1.4rem;margin:12px 0 4px">How to use this</h1>`);
+  o.push(`<p class="ot" style="margin:0 0 18px">Written to be read once,
+    straight through. Nothing here is hidden behind anything else.</p>`);
+
+  o.push(`<p class="lbl" style="margin:18px 0 10px">Reading</p>`);
+
+  o.push(step('Making the words bigger', `
+    The <b>Aa</b> button at the top of every screen. Text size goes from
+    small to a good deal larger than it starts, and there are six colour
+    schemes: Paper, Sepia, High contrast, Dim, Night and Black. Whatever you
+    choose is remembered, on this phone, for ever. You do not have to set it
+    again.`));
+
+  o.push(step('Having it read to you', `
+    The <b>Listen</b> button sits at the top of every chapter and again at
+    the bottom. Every chapter of all sixty-six books has a recording, read by
+    volunteers, free to anybody. It keeps playing while you turn pages, and
+    when one reading ends the next starts.
+    <br><br>
+    Some of the recordings hold several chapters in one go. Where that
+    happens it puts you near the chapter you asked for, worked out from how
+    many verses come before it, and says so — that is a reckoning, not a
+    real timing, so you may need to drag the slider a little either way.
+    <br><br>
+    This is the one part that needs an internet connection. Everything else
+    works with no signal at all.`));
+
+  o.push(step('Going somewhere else', `
+    The <b>three lines</b> at the top left open the list of all sixty-six
+    books; tap a book and then a chapter. The <b>name of the chapter</b> in
+    the middle of the bar does the same thing in one step if you already know
+    where you are going. The <b>magnifying glass</b> searches the whole
+    Bible — the English, the translators' notes, or the original words.`));
+
+  o.push(`<p class="lbl" style="margin:26px 0 10px">Looking things up</p>`);
+
+  o.push(step('Tap any Hebrew or Greek word', `
+    The word opens up. You get what it is, how it is pronounced, what each
+    part of it means, and its dictionary number — the number a printed
+    concordance uses, so it is the same number you would look up in a book.
+    <br><br>
+    One printed word often holds several pieces. <i>B'reshit</i>, the first
+    word of Genesis, is <i>in</i> and <i>beginning</i> joined together, and
+    each piece has its own entry.`));
+
+  o.push(step('Seeing every verse that uses a word', `
+    Inside the word, there is a line that says something like
+    <b>Concordance: 321 verses</b>. Tap it. You get every single one of those
+    verses, in order, with the text of each one — not just the chapter and
+    verse numbers — and the word picked out so your eye can find it.
+    Tap any of them to go and read it properly.`));
+
+  o.push(step('Getting back again', `
+    This was the thing most worth fixing. Once you are a layer deep, the top
+    left of the panel says <b>← Back to the word</b>, or back to whatever
+    you came from, by name. So you can go word, then concordance, then
+    dictionary, and walk back out the way you came instead of closing
+    everything and starting over.
+    <br><br>
+    The <b>✕</b> at the top right closes the whole panel and puts you
+    back in the text.`));
+
+  o.push(step('The dictionary', `
+    Inside a word, a place or a person there is a line offering the
+    <b>Bible dictionary</b>. That is Easton's, which covers names, places and
+    topics rather than every English word — so it has an entry for
+    <i>Ephesus</i> and for <i>atonement</i>, and none for <i>the</i>. If
+    there is no entry it says so, and offers the nearest things it does have.`));
+
+  o.push(`<p class="lbl" style="margin:26px 0 10px">The markers under a verse</p>`);
+
+  o.push(step('What the little buttons mean', `
+    <b>◆ a place name</b> — where it is, what it is called today,
+    a photograph of it, and for twenty-five of them a full photosphere you
+    can stand in and turn round.
+    <br><br>
+    <b>a person's name</b> — who they were and every verse that names
+    them.
+    <br><br>
+    <b>⧖ an event</b> — when it happened, by several different
+    reckonings, because the people who work on this disagree and the app
+    shows you the disagreement rather than picking one quietly.
+    <br><br>
+    <b>✎ notes</b> — the translators' own notes on that verse:
+    where the wording is hard, where an idiom will not carry across.
+    <br><br>
+    <b>⇄ cross-references</b> — other verses that say the same
+    thing, strongest first, each with its text.
+    <br><br>
+    <b>§ commentary</b> — Matthew Henry, Calvin, the Geneva notes,
+    Poole, Trapp and Spurgeon on that verse.`));
+
+  o.push(`<p class="lbl" style="margin:26px 0 10px">Two things worth knowing</p>`);
+
+  o.push(step('It works with no signal', `
+    Chapters you have opened are already kept on this phone. If you want all
+    of it — every word, every picture, every engraving — there is a
+    download on the About page. After that it works on a plane, in a
+    hospital, or anywhere with no bars at all. The spoken readings are the
+    one thing that cannot be kept, because they are two and a half gigabytes
+    and they live on somebody else's server.`));
+
+  o.push(step('Where it disagrees with itself, it says so', `
+    Where a place is disputed, it says disputed and tells you the photograph
+    is of one proposed site. Where the dating schemes disagree, it shows you
+    all of them. Where a plate has no verse recorded against it, it says that
+    rather than guessing. Nothing here is a settled opinion dressed up as a
+    fact, and every source is named on the About page and free to copy.`));
+
+  o.push(`<button class="more" data-go="about" style="margin-top:22px">About, and
+    where all of this came from →</button>`);
+  o.push(footer());
+  $('#view').innerHTML = o.join('');
+  window.scrollTo(0, 0);
+}
+
 /* ============================================================== welcome */
 /* The first thing a person sees when somebody sends them the link.
    Two sentences on what it is, then the five things worth knowing, each
@@ -1463,6 +1690,8 @@ function welcomeView() {
     <button class="start" data-startreading="1">Start reading \u2192</button></div>`);
   o.push(`<p class="pa" style="margin:4px 0 0">It opens at John 3. Use the
     menu at the top left to go anywhere else.</p>`);
+  o.push(`<button class="more" data-go="guide" style="margin:14px 0 0">Or read
+    the longer guide first →</button>`);
 
   o.push(`<p class="lbl" style="margin:30px 0 8px">Three more things, for later</p>`);
   o.push(installBlock());
@@ -1843,8 +2072,10 @@ function aboutView() {
     works without it.</p>`);
 
   o.push(installBlock());
-  o.push(`<button class="more" data-go="welcome" style="margin:18px 0 0">Show me
-    how to use this again \u2192</button>`);
+  o.push(`<button class="more" data-go="guide" style="margin:18px 0 0">How to
+    use this \u2192</button>`);
+  o.push(`<button class="more" data-go="welcome">Show me the first screen again
+    \u2192</button>`);
   o.push(`<p class="lbl" style="margin:24px 0 8px">Where all of this came from</p>`);
   [['STEPBible — Tyndale House, Cambridge',
     'TAHOT and TAGNT: the Hebrew and Greek text with a dictionary number and a grammar code on every word, including the separate numbers for prefixes and endings. CC BY 4.0.'],
@@ -2003,6 +2234,7 @@ function route() {
     go('#/' + S.book + '.' + S.ch, true); return;
   }
   if (h === 'welcome') { $('#ref').textContent = 'Welcome'; return welcomeView(); }
+  if (h === 'guide')   { $('#ref').textContent = 'How to use this'; return guideView(); }
   if (h === 'chrono') { $('#ref').textContent = 'Chronology'; return chronoView(); }
   if (h === 'offline') { $('#ref').textContent = 'Offline'; return offlineView(); }
   if (h === 'about')  { $('#ref').textContent = 'About';      return aboutView(); }
@@ -2019,7 +2251,7 @@ function route() {
 
 /* ========================================================= event wiring */
 document.addEventListener('click', ev => {
-  const t = ev.target.closest('[data-install],[data-look],[data-pan],[data-startreading],[data-listen],[data-aufrom],[data-setpix],[data-go2],[data-fs],[data-setscheme3],[data-settx],[data-setpron],[data-setscheme],[data-setscheme2],[data-tier],[data-dlstart],[data-dlstop],[data-dlclear],[data-cmf],[data-close],[data-v][data-t],[data-k],[data-ref],[data-conc],[data-dict],[data-book],[data-ch],[data-nav],[data-go],[data-tab],[data-expand]');
+  const t = ev.target.closest('[data-sheetback],[data-install],[data-look],[data-pan],[data-startreading],[data-listen],[data-aufrom],[data-setpix],[data-go2],[data-fs],[data-setscheme3],[data-settx],[data-setpron],[data-setscheme],[data-setscheme2],[data-tier],[data-dlstart],[data-dlstop],[data-dlclear],[data-cmf],[data-close],[data-v][data-t],[data-k],[data-ref],[data-conc],[data-dict],[data-book],[data-ch],[data-nav],[data-go],[data-tab],[data-expand]');
   if (!t) return;
 
   if (t.dataset.close) return closeSheet();
@@ -2091,8 +2323,10 @@ document.addEventListener('click', ev => {
     if (t.dataset.k === 'cm')     return void cmSheet(vi);
   }
   if (t.dataset.ref)   return go('#/' + t.dataset.ref);
-  if (t.dataset.conc)  return void concSheet(t.dataset.conc);
-  if (t.dataset.dict)  return void dictSheet(t.dataset.dict);
+  if (t.dataset.conc)  return void pushSheet(() => concSheet(t.dataset.conc));
+  if (t.dataset.dict)  return void pushSheet(
+    () => dictSheet(t.dataset.dict, t.dataset.from || ''));
+  if (t.dataset.sheetback) return sheetBack();
   if (t.dataset.book)  return chaptersSheet(t.dataset.book);
   if (t.dataset.ch)    return go('#/' + t.dataset.cbook + '.' + t.dataset.ch);
   if (t.dataset.nav)   return go('#/' + S.book + '.' + (S.ch + (t.dataset.nav === 'next' ? 1 : -1)));
